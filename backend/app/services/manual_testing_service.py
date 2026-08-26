@@ -158,6 +158,12 @@ class ManualTestingService:
     # -------------------------------------------------------------
     # 2. Test Cases & Steps
     # -------------------------------------------------------------
+    @staticmethod
+    def _parse_tags(tags_str: Optional[str]) -> List[str]:
+        if not tags_str:
+            return []
+        return [t.strip() for t in tags_str.split(",") if t.strip()]
+
     @classmethod
     def get_test_cases(
         cls,
@@ -167,13 +173,15 @@ class ManualTestingService:
         module_id: Optional[str] = None,
         priority: Optional[TestCasePriority] = None,
         status: Optional[TestCaseStatus] = None,
+        test_type: Optional[Any] = None,
+        tag: Optional[str] = None,
         search: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> List[TestCaseResponse]:
         cls.get_authorized_project(db, project_id, current_user, require_write=False)
         cases, _ = test_case_repo.get_project_cases(
-            db, project_id, module_id, priority, status, search, skip, limit
+            db, project_id, module_id, priority, status, test_type, tag, search, skip, limit
         )
 
         result = []
@@ -192,8 +200,10 @@ class ManualTestingService:
                     title=c.title,
                     description=c.description,
                     template_type=c.template_type,
+                    test_type=c.test_type,
                     priority=c.priority,
                     status=c.status,
+                    tags=cls._parse_tags(c.tags),
                     preconditions=c.preconditions,
                     test_data=c.test_data,
                     expected_result=c.expected_result,
@@ -476,8 +486,10 @@ class ManualTestingService:
             title=case.title,
             description=case.description,
             template_type=case.template_type,
+            test_type=case.test_type,
             priority=case.priority,
             status=case.status,
+            tags=cls._parse_tags(case.tags),
             preconditions=case.preconditions,
             test_data=case.test_data,
             expected_result=case.expected_result,
@@ -504,8 +516,10 @@ class ManualTestingService:
                 title=m.test_case.title,
                 description=m.test_case.description,
                 template_type=m.test_case.template_type,
+                test_type=m.test_case.test_type,
                 priority=m.test_case.priority,
                 status=m.test_case.status,
+                tags=cls._parse_tags(m.test_case.tags),
                 preconditions=m.test_case.preconditions,
                 test_data=m.test_case.test_data,
                 expected_result=m.test_case.expected_result,
@@ -582,6 +596,7 @@ class ManualTestingService:
                 step_number=s.step_number,
                 action=s.action,
                 expected_result=s.expected_result,
+                test_data=s.test_data,
                 actual_result=s.actual_result,
                 status=s.status,
             )
@@ -614,6 +629,8 @@ class ManualTestingService:
             test_data=item.test_data,
             expected_result=item.expected_result,
             priority=item.priority,
+            test_type=item.test_type,
+            tags=cls._parse_tags(item.tags),
             status=item.status,
             actual_result=item.actual_result,
             notes=item.notes,

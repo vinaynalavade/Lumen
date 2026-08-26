@@ -7,7 +7,9 @@ from app.schemas.workspace import (
     WorkspaceCreate,
     WorkspaceUpdate,
     WorkspaceResponse,
-    WorkspaceMemberResponse
+    WorkspaceMemberResponse,
+    WorkspaceMemberAdd,
+    WorkspaceMemberUpdate,
 )
 from app.schemas.project import ProjectCreate, ProjectResponse
 from app.services.workspace_service import workspace_service
@@ -64,6 +66,40 @@ def get_workspace_members(
 ):
     """List members of a workspace."""
     return workspace_service.get_workspace_members(db, workspace_id, current_user)
+
+
+@router.post("/{workspace_id}/members", response_model=WorkspaceMemberResponse, status_code=status.HTTP_201_CREATED)
+def add_workspace_member(
+    workspace_id: str,
+    member_in: WorkspaceMemberAdd,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Add a new member to the workspace (admin/owner only)."""
+    return workspace_service.add_workspace_member(db, workspace_id, member_in, current_user)
+
+
+@router.put("/{workspace_id}/members/{user_id}", response_model=WorkspaceMemberResponse)
+def update_workspace_member(
+    workspace_id: str,
+    user_id: str,
+    member_in: WorkspaceMemberUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update a workspace member's role (admin/owner only)."""
+    return workspace_service.update_workspace_member(db, workspace_id, user_id, member_in, current_user)
+
+
+@router.delete("/{workspace_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_workspace_member(
+    workspace_id: str,
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Remove a member from the workspace (admin/owner or self)."""
+    workspace_service.remove_workspace_member(db, workspace_id, user_id, current_user)
 
 
 @router.get("/{workspace_id}/projects", response_model=List[ProjectResponse])

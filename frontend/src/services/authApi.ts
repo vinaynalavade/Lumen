@@ -16,6 +16,10 @@ export const authApi = {
     return ApiClient.get<User>('/auth/me');
   },
 
+  updateProfile: async (data: { full_name?: string; professional_title?: string; avatar_url?: string }): Promise<User> => {
+    return ApiClient.put<User>('/users/profile', data);
+  },
+
   logout: () => {
     ApiClient.removeToken();
   },

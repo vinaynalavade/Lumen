@@ -11,7 +11,8 @@ from app.schemas.workspace import (
     WorkspaceUpdate,
     WorkspaceResponse,
     WorkspaceMemberResponse,
-    WorkspaceMemberAdd
+    WorkspaceMemberAdd,
+    WorkspaceMemberUpdate,
 )
 from app.schemas.user import UserResponse
 
@@ -132,6 +133,94 @@ class WorkspaceService:
             )
             for m in members
         ]
+
+    @staticmethod
+    def add_workspace_member(
+        db: Session, workspace_id: str, obj_in: WorkspaceMemberAdd, current_user: User
+    ) -> WorkspaceMemberResponse:
+        ws = workspace_repo.get(db, workspace_id)
+        if not ws:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found.")
+
+        caller_membership = workspace_repo.get_membership(db, ws.id, current_user.id)
+        if not caller_membership or caller_membership.role not in [WorkspaceRole.OWNER, WorkspaceRole.ADMIN]:
+            if not current_user.is_superuser:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owners and admins can add members.")
+
+        target_user = user_repo.get_by_email(db, obj_in.email)
+        if not target_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with email '{obj_in.email}' not found.")
+
+        existing = workspace_repo.get_membership(db, ws.id, target_user.id)
+        if existing:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is already a member of this workspace.")
+
+        member = workspace_repo.add_member(db, workspace_id=ws.id, user_id=target_user.id, role=obj_in.role)
+        return WorkspaceMemberResponse(
+            id=member.id,
+            workspace_id=member.workspace_id,
+            user_id=member.user_id,
+            role=member.role,
+            joined_at=member.created_at,
+            user=UserResponse.model_validate(target_user)
+        )
+
+    @staticmethod
+    def update_workspace_member(
+        db: Session, workspace_id: str, member_user_id: str, obj_in: WorkspaceMemberUpdate, current_user: User
+    ) -> WorkspaceMemberResponse:
+        ws = workspace_repo.get(db, workspace_id)
+        if not ws:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found.")
+
+        caller_membership = workspace_repo.get_membership(db, ws.id, current_user.id)
+        if not caller_membership or caller_membership.role not in [WorkspaceRole.OWNER, WorkspaceRole.ADMIN]:
+            if not current_user.is_superuser:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owners and admins can update member roles.")
+
+        member = workspace_repo.get_membership(db, ws.id, member_user_id)
+        if not member:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace member not found.")
+
+        if member.user_id == ws.owner_id and obj_in.role != WorkspaceRole.OWNER:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot change role of workspace owner.")
+
+        member.role = obj_in.role
+        db.commit()
+        db.refresh(member)
+
+        return WorkspaceMemberResponse(
+            id=member.id,
+            workspace_id=member.workspace_id,
+            user_id=member.user_id,
+            role=member.role,
+            joined_at=member.created_at,
+            user=UserResponse.model_validate(member.user)
+        )
+
+    @staticmethod
+    def remove_workspace_member(
+        db: Session, workspace_id: str, member_user_id: str, current_user: User
+    ) -> None:
+        ws = workspace_repo.get(db, workspace_id)
+        if not ws:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found.")
+
+        caller_membership = workspace_repo.get_membership(db, ws.id, current_user.id)
+        is_self = member_user_id == current_user.id
+        if not is_self and (not caller_membership or caller_membership.role not in [WorkspaceRole.OWNER, WorkspaceRole.ADMIN]):
+            if not current_user.is_superuser:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owners and admins can remove members.")
+
+        member = workspace_repo.get_membership(db, ws.id, member_user_id)
+        if not member:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace member not found.")
+
+        if member.user_id == ws.owner_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove the workspace owner.")
+
+        db.delete(member)
+        db.commit()
 
 
 workspace_service = WorkspaceService()

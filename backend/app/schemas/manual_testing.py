@@ -3,6 +3,7 @@ from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 from app.models.manual_testing import (
     TestCaseTemplate,
+    TestCaseType,
     TestCasePriority,
     TestCaseStatus,
     TestRunStatus,
@@ -64,8 +65,10 @@ class TestCaseBase(BaseModel):
     description: Optional[str] = None
     module_id: Optional[str] = None
     template_type: TestCaseTemplate = TestCaseTemplate.STANDARD
+    test_type: TestCaseType = TestCaseType.FUNCTIONAL
     priority: TestCasePriority = TestCasePriority.MEDIUM
     status: TestCaseStatus = TestCaseStatus.ACTIVE
+    tags: List[str] = []
     preconditions: Optional[str] = None
     test_data: Optional[str] = None
     expected_result: Optional[str] = None
@@ -81,8 +84,10 @@ class TestCaseUpdate(BaseModel):
     description: Optional[str] = None
     module_id: Optional[str] = None
     template_type: Optional[TestCaseTemplate] = None
+    test_type: Optional[TestCaseType] = None
     priority: Optional[TestCasePriority] = None
     status: Optional[TestCaseStatus] = None
+    tags: Optional[List[str]] = None
     preconditions: Optional[str] = None
     test_data: Optional[str] = None
     expected_result: Optional[str] = None
@@ -175,6 +180,7 @@ class TestRunItemStepResultResponse(BaseModel):
     step_number: int
     action: str
     expected_result: str
+    test_data: Optional[str] = None
     actual_result: Optional[str] = None
     status: ExecutionStatus
 
@@ -200,6 +206,8 @@ class TestRunItemResponse(BaseModel):
     test_data: Optional[str] = None
     expected_result: Optional[str] = None
     priority: str
+    test_type: str = "FUNCTIONAL"
+    tags: List[str] = []
     status: ExecutionStatus
     actual_result: Optional[str] = None
     notes: Optional[str] = None

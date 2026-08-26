@@ -6,6 +6,7 @@ class UserBase(BaseModel):
     email: EmailStr
     full_name: str
     avatar_url: str | None = None
+    professional_title: str | None = None
     is_active: bool = True
 
 
@@ -13,11 +14,13 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     full_name: str
+    professional_title: str | None = None
 
 
 class UserUpdate(BaseModel):
     full_name: str | None = None
     avatar_url: str | None = None
+    professional_title: str | None = None
     password: str | None = None
 
 

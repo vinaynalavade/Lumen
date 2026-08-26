@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user
 from app.models.user import User
-from app.models.manual_testing import TestCasePriority, TestCaseStatus
+from app.models.manual_testing import TestCasePriority, TestCaseStatus, TestCaseType
 from app.services.manual_testing_service import manual_testing_service
 from app.schemas.manual_testing import (
     TestModuleCreate,
@@ -86,7 +86,9 @@ def get_project_test_cases(
     module_id: Optional[str] = Query(None, description="Filter by module"),
     priority: Optional[TestCasePriority] = Query(None, description="Filter by priority"),
     status: Optional[TestCaseStatus] = Query(None, description="Filter by status"),
-    search: Optional[str] = Query(None, description="Search query across title, key, desc"),
+    test_type: Optional[TestCaseType] = Query(None, description="Filter by test type"),
+    tag: Optional[str] = Query(None, description="Filter by tag"),
+    search: Optional[str] = Query(None, description="Search query across title, key, desc, tags"),
     skip: int = 0,
     limit: int = 200,
     db: Session = Depends(get_db),
@@ -94,7 +96,7 @@ def get_project_test_cases(
 ):
     """List test cases in a project with filtering."""
     return manual_testing_service.get_test_cases(
-        db, project_id, current_user, module_id, priority, status, search, skip, limit
+        db, project_id, current_user, module_id, priority, status, test_type, tag, search, skip, limit
     )
 
 

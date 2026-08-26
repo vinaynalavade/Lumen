@@ -84,6 +84,8 @@ class TestCaseRepository(BaseRepository[TestCase]):
         module_id: Optional[str] = None,
         priority: Optional[TestCasePriority] = None,
         status: Optional[TestCaseStatus] = None,
+        test_type: Optional[Any] = None,
+        tag: Optional[str] = None,
         search: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
@@ -99,6 +101,10 @@ class TestCaseRepository(BaseRepository[TestCase]):
         else:
             # By default exclude ARCHIVED unless explicitly filtered
             query = query.filter(TestCase.status != TestCaseStatus.ARCHIVED)
+        if test_type:
+            query = query.filter(TestCase.test_type == test_type)
+        if tag:
+            query = query.filter(TestCase.tags.ilike(f"%{tag.strip()}%"))
 
         if search:
             search_pattern = f"%{search.strip()}%"
@@ -107,6 +113,7 @@ class TestCaseRepository(BaseRepository[TestCase]):
                     TestCase.title.ilike(search_pattern),
                     TestCase.key.ilike(search_pattern),
                     TestCase.description.ilike(search_pattern),
+                    TestCase.tags.ilike(search_pattern),
                 )
             )
 
@@ -120,19 +127,23 @@ class TestCaseRepository(BaseRepository[TestCase]):
         next_num = self.get_next_case_number(db, project.id)
         key = f"{project.key}-TC-{next_num}"
 
+        tags_str = ", ".join([t.strip() for t in obj_in.tags if t.strip()]) if obj_in.tags else None
+
         db_case = TestCase(
             project_id=project.id,
             module_id=obj_in.module_id,
             case_number=next_num,
             key=key,
             title=obj_in.title.strip(),
-            description=obj_in.description,
+            description=obj_in.description.strip() if obj_in.description else None,
             template_type=obj_in.template_type,
+            test_type=obj_in.test_type,
             priority=obj_in.priority,
             status=obj_in.status,
-            preconditions=obj_in.preconditions,
-            test_data=obj_in.test_data,
-            expected_result=obj_in.expected_result,
+            tags=tags_str,
+            preconditions=obj_in.preconditions.strip() if obj_in.preconditions else None,
+            test_data=obj_in.test_data.strip() if obj_in.test_data else None,
+            expected_result=obj_in.expected_result.strip() if obj_in.expected_result else None,
             estimated_duration_minutes=obj_in.estimated_duration_minutes,
             created_by_id=user_id,
             updated_by_id=user_id,
@@ -147,7 +158,7 @@ class TestCaseRepository(BaseRepository[TestCase]):
                 step_number=idx,
                 action=step_in.action.strip(),
                 expected_result=step_in.expected_result.strip(),
-                test_data=step_in.test_data,
+                test_data=step_in.test_data.strip() if step_in.test_data else None,
             )
             db.add(db_step)
 
@@ -166,6 +177,7 @@ class TestCaseRepository(BaseRepository[TestCase]):
             "description",
             "module_id",
             "template_type",
+            "test_type",
             "priority",
             "status",
             "preconditions",
@@ -174,7 +186,14 @@ class TestCaseRepository(BaseRepository[TestCase]):
             "estimated_duration_minutes",
         ]:
             if field in update_data:
-                setattr(db_case, field, update_data[field])
+                val = update_data[field]
+                if isinstance(val, str):
+                    val = val.strip() if val else None
+                setattr(db_case, field, val)
+
+        if "tags" in update_data:
+            if obj_in.tags is not None:
+                db_case.tags = ", ".join([t.strip() for t in obj_in.tags if t.strip()]) if obj_in.tags else None
 
         db_case.updated_by_id = user_id
         db_case.updated_at = utc_now()
@@ -190,7 +209,7 @@ class TestCaseRepository(BaseRepository[TestCase]):
                     step_number=idx,
                     action=step_in.action.strip(),
                     expected_result=step_in.expected_result.strip(),
-                    test_data=step_in.test_data,
+                    test_data=step_in.test_data.strip() if step_in.test_data else None,
                 )
                 db.add(db_step)
 
@@ -227,7 +246,7 @@ class TestSuiteRepository(BaseRepository[TestSuite]):
         db_suite = TestSuite(
             project_id=project_id,
             name=obj_in.name.strip(),
-            description=obj_in.description,
+            description=obj_in.description.strip() if obj_in.description else None,
             created_by_id=user_id,
         )
         db.add(db_suite)
@@ -302,19 +321,22 @@ class TestRunRepository(BaseRepository[TestRun]):
                 preconditions=tc.preconditions,
                 test_data=tc.test_data,
                 expected_result=tc.expected_result,
-                priority=tc.priority.value,
+                priority=tc.priority.value if hasattr(tc.priority, "value") else str(tc.priority),
+                test_type=tc.test_type.value if hasattr(tc.test_type, "value") else str(tc.test_type),
+                tags=tc.tags,
                 status=ExecutionStatus.UNTESTED,
             )
             db.add(run_item)
             db.flush()
 
-            # Snapshot steps
+            # Snapshot steps with test_data
             for step in tc.steps:
                 step_res = TestRunItemStepResult(
                     test_run_item_id=run_item.id,
                     step_number=step.step_number,
                     action=step.action,
                     expected_result=step.expected_result,
+                    test_data=step.test_data,
                     status=ExecutionStatus.UNTESTED,
                 )
                 db.add(step_res)

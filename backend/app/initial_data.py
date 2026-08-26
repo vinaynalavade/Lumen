@@ -15,6 +15,7 @@ from app.models.manual_testing import (
     TestRunItem,
     TestRunItemStepResult,
     TestCaseTemplate,
+    TestCaseType,
     TestCasePriority,
     TestCaseStatus,
     TestRunStatus,
@@ -35,7 +36,8 @@ def init_db(db: Session) -> None:
         logger.info("Creating demo user: demo@lumen.qa / password123")
         user = User(
             email="demo@lumen.qa",
-            full_name="Alex Mercer (QA Lead)",
+            full_name="Alex Mercer",
+            professional_title="QA Lead",
             hashed_password=get_password_hash("password123"),
             is_active=True,
             is_superuser=True
@@ -112,8 +114,10 @@ def init_db(db: Session) -> None:
             title="Verify user login with valid email & password",
             description="Ensure registered customer can log into their account and receive active JWT session.",
             template_type=TestCaseTemplate.STANDARD,
+            test_type=TestCaseType.SMOKE,
             priority=TestCasePriority.HIGH,
             status=TestCaseStatus.ACTIVE,
+            tags="Authentication, Login, Smoke",
             preconditions="User account exists and email is confirmed.",
             test_data="demo@lumen.qa / password123",
             expected_result="User is redirected to the dashboard with active session token.",
@@ -124,12 +128,12 @@ def init_db(db: Session) -> None:
         db.flush()
 
         steps1 = [
-            ("Navigate to the login screen (/login)", "Login form renders with email & password inputs"),
-            ("Enter valid email and password credentials", "Credentials accepted in input fields"),
-            ("Click 'Sign In to Workspace' button", "User is redirected to project cockpit with active token"),
+            ("Navigate to the login screen (/login)", "Login form renders with email & password inputs", None),
+            ("Enter valid email and password credentials", "Credentials accepted in input fields", "demo@lumen.qa / password123"),
+            ("Click 'Sign In to Workspace' button", "User is redirected to project cockpit with active token", None),
         ]
-        for idx, (act, exp) in enumerate(steps1, 1):
-            db.add(TestCaseStep(test_case_id=tc1.id, step_number=idx, action=act, expected_result=exp))
+        for idx, (act, exp, tdata) in enumerate(steps1, 1):
+            db.add(TestCaseStep(test_case_id=tc1.id, step_number=idx, action=act, expected_result=exp, test_data=tdata))
 
         tc2 = TestCase(
             project_id=project.id,
@@ -139,8 +143,10 @@ def init_db(db: Session) -> None:
             title="Verify credit card checkout validation with valid CVV",
             description="Validate payment processing and order confirmation receipt generation.",
             template_type=TestCaseTemplate.STANDARD,
+            test_type=TestCaseType.FUNCTIONAL,
             priority=TestCasePriority.CRITICAL,
             status=TestCaseStatus.ACTIVE,
+            tags="Checkout, Payment, Critical",
             preconditions="Items are present in shopping cart; checkout flow is initiated.",
             test_data="Visa 4111-2222-3333-4444, Exp 12/28, CVV 123",
             expected_result="Payment authorized with HTTP 200, inventory decremented in DB, and order receipt displayed.",
@@ -151,12 +157,12 @@ def init_db(db: Session) -> None:
         db.flush()
 
         steps2 = [
-            ("Proceed to Checkout from cart page", "Checkout summary renders line items and total"),
-            ("Select Credit Card payment option and fill card credentials", "Card fields pass client validation"),
-            ("Click 'Place Order' button", "Payment processed, order confirmed with unique confirmation ID"),
+            ("Proceed to Checkout from cart page", "Checkout summary renders line items and total", None),
+            ("Select Credit Card payment option and fill card credentials", "Card fields pass client validation", "4111-2222-3333-4444, Exp 12/28, CVV 123"),
+            ("Click 'Place Order' button", "Payment processed, order confirmed with unique confirmation ID", None),
         ]
-        for idx, (act, exp) in enumerate(steps2, 1):
-            db.add(TestCaseStep(test_case_id=tc2.id, step_number=idx, action=act, expected_result=exp))
+        for idx, (act, exp, tdata) in enumerate(steps2, 1):
+            db.add(TestCaseStep(test_case_id=tc2.id, step_number=idx, action=act, expected_result=exp, test_data=tdata))
 
         tc3 = TestCase(
             project_id=project.id,
@@ -166,8 +172,10 @@ def init_db(db: Session) -> None:
             title="Verify order inventory rollback on failed payment",
             description="Ensure database inventory lock releases if credit card charge is declined.",
             template_type=TestCaseTemplate.SIMPLE,
+            test_type=TestCaseType.NEGATIVE,
             priority=TestCasePriority.HIGH,
             status=TestCaseStatus.ACTIVE,
+            tags="Inventory, Payment, Negative",
             expected_result="Inventory count unchanged in database when payment gateway returns decline code.",
             created_by_id=user.id,
             updated_by_id=user.id
@@ -211,7 +219,12 @@ def init_db(db: Session) -> None:
             case_key=tc1.key,
             title=tc1.title,
             description=tc1.description,
+            preconditions=tc1.preconditions,
+            test_data=tc1.test_data,
+            expected_result=tc1.expected_result,
             priority=tc1.priority.value,
+            test_type=tc1.test_type.value,
+            tags=tc1.tags,
             status=ExecutionStatus.PASSED,
             actual_result="Login succeeded and session established seamlessly.",
             duration_seconds=12,
@@ -220,7 +233,7 @@ def init_db(db: Session) -> None:
         db.add(item1)
         db.flush()
         for s in tc1.steps:
-            db.add(TestRunItemStepResult(test_run_item_id=item1.id, step_number=s.step_number, action=s.action, expected_result=s.expected_result, status=ExecutionStatus.PASSED))
+            db.add(TestRunItemStepResult(test_run_item_id=item1.id, step_number=s.step_number, action=s.action, expected_result=s.expected_result, test_data=s.test_data, status=ExecutionStatus.PASSED))
 
         item2 = TestRunItem(
             test_run_id=run.id,
@@ -229,13 +242,18 @@ def init_db(db: Session) -> None:
             case_key=tc2.key,
             title=tc2.title,
             description=tc2.description,
+            preconditions=tc2.preconditions,
+            test_data=tc2.test_data,
+            expected_result=tc2.expected_result,
             priority=tc2.priority.value,
+            test_type=tc2.test_type.value,
+            tags=tc2.tags,
             status=ExecutionStatus.UNTESTED
         )
         db.add(item2)
         db.flush()
         for s in tc2.steps:
-            db.add(TestRunItemStepResult(test_run_item_id=item2.id, step_number=s.step_number, action=s.action, expected_result=s.expected_result, status=ExecutionStatus.UNTESTED))
+            db.add(TestRunItemStepResult(test_run_item_id=item2.id, step_number=s.step_number, action=s.action, expected_result=s.expected_result, test_data=s.test_data, status=ExecutionStatus.UNTESTED))
 
         item3 = TestRunItem(
             test_run_id=run.id,
@@ -245,6 +263,8 @@ def init_db(db: Session) -> None:
             title=tc3.title,
             description=tc3.description,
             priority=tc3.priority.value,
+            test_type=tc3.test_type.value,
+            tags=tc3.tags,
             status=ExecutionStatus.UNTESTED
         )
         db.add(item3)

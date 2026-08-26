@@ -152,6 +152,29 @@ export const TestRunnerWorkstation: React.FC = () => {
 
   const items = testRun.items || [];
 
+  const getTypeBadgeColor = (type?: string) => {
+    switch (type) {
+      case 'SMOKE':
+        return '#ec4899';
+      case 'SANITY':
+        return '#f59e0b';
+      case 'REGRESSION':
+        return '#8b5cf6';
+      case 'INTEGRATION':
+        return '#06b6d4';
+      case 'NEGATIVE':
+        return '#ef4444';
+      case 'EDGE_CASE':
+        return '#64748b';
+      case 'UI':
+        return '#3b82f6';
+      case 'API':
+        return '#10b981';
+      default:
+        return 'var(--primary)';
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {/* 1. Top Runner Header Bar */}
@@ -297,7 +320,7 @@ export const TestRunnerWorkstation: React.FC = () => {
             <Card padding="lg" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
                     <span
                       style={{
                         fontFamily: 'var(--font-mono)',
@@ -311,6 +334,21 @@ export const TestRunnerWorkstation: React.FC = () => {
                     >
                       {activeItem.case_key}
                     </span>
+                    {activeItem.test_type && (
+                      <span
+                        style={{
+                          fontSize: '0.6875rem',
+                          fontWeight: 700,
+                          padding: '2px 7px',
+                          borderRadius: 'var(--radius-sm)',
+                          color: getTypeBadgeColor(activeItem.test_type),
+                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                          border: `1px solid ${getTypeBadgeColor(activeItem.test_type)}50`,
+                        }}
+                      >
+                        {activeItem.test_type}
+                      </span>
+                    )}
                     <Badge variant="neutral">{activeItem.priority}</Badge>
                     <Badge
                       variant={
@@ -333,6 +371,26 @@ export const TestRunnerWorkstation: React.FC = () => {
                     <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
                       {activeItem.description}
                     </p>
+                  )}
+
+                  {activeItem.tags && activeItem.tags.length > 0 && (
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px' }}>
+                      {activeItem.tags.map((tg) => (
+                        <span
+                          key={tg}
+                          style={{
+                            fontSize: '0.6875rem',
+                            padding: '1px 6px',
+                            borderRadius: 'var(--radius-sm)',
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            color: 'var(--text-muted)',
+                            border: '1px solid var(--border-subtle)',
+                          }}
+                        >
+                          #{tg}
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </div>
 
@@ -359,7 +417,7 @@ export const TestRunnerWorkstation: React.FC = () => {
                 </div>
               </div>
 
-              {/* Preconditions & Test Data banner */}
+              {/* Preconditions & Global Test Data banner */}
               {(activeItem.preconditions || activeItem.test_data) && (
                 <div
                   style={{
@@ -380,7 +438,7 @@ export const TestRunnerWorkstation: React.FC = () => {
                   )}
                   {activeItem.test_data && (
                     <div>
-                      <strong style={{ color: 'var(--text-muted)' }}>Test Data:</strong>{' '}
+                      <strong style={{ color: 'var(--text-muted)' }}>Global Test Data:</strong>{' '}
                       <span style={{ color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)' }}>
                         {activeItem.test_data}
                       </span>
@@ -408,8 +466,8 @@ export const TestRunnerWorkstation: React.FC = () => {
                             borderRadius: 'var(--radius-md)',
                             border: '1px solid var(--border-subtle)',
                             display: 'grid',
-                            gridTemplateColumns: '32px 1fr 1fr 140px',
-                            gap: '12px',
+                            gridTemplateColumns: '28px 1fr 0.8fr 1fr 140px',
+                            gap: '10px',
                             alignItems: 'center',
                           }}
                         >
@@ -422,6 +480,14 @@ export const TestRunnerWorkstation: React.FC = () => {
                             </span>
                             <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', marginTop: '2px' }}>
                               {step.action}
+                            </div>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                              Step Test Data
+                            </span>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)', marginTop: '2px' }}>
+                              {step.test_data || '—'}
                             </div>
                           </div>
                           <div>
@@ -523,7 +589,7 @@ export const TestRunnerWorkstation: React.FC = () => {
 
                 <div>
                   <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: '6px' }}>
-                    Execution Notes / Comments
+                    Execution Notes / Observations
                   </label>
                   <textarea
                     placeholder="Optional notes, environmental details, or observations..."

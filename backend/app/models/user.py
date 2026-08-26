@@ -10,6 +10,7 @@ class User(BaseModel):
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=False)
     avatar_url = Column(String(512), nullable=True)
+    professional_title = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     is_superuser = Column(Boolean, default=False, nullable=False)
 

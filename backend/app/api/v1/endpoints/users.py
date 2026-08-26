@@ -26,9 +26,11 @@ def update_user_profile(
     """Update current user profile info."""
     update_data = {}
     if user_in.full_name is not None:
-        update_data["full_name"] = user_in.full_name
+        update_data["full_name"] = user_in.full_name.strip()
     if user_in.avatar_url is not None:
-        update_data["avatar_url"] = user_in.avatar_url
+        update_data["avatar_url"] = user_in.avatar_url.strip() if user_in.avatar_url else None
+    if user_in.professional_title is not None:
+        update_data["professional_title"] = user_in.professional_title.strip() if user_in.professional_title else None
     if user_in.password:
         update_data["hashed_password"] = get_password_hash(user_in.password)
 

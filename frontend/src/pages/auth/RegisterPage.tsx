@@ -51,7 +51,7 @@ export const RegisterPage: React.FC = () => {
       });
 
       login(authRes.access_token, authRes.user);
-      navigate('/projects');
+      navigate('/onboarding');
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {

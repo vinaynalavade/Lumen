@@ -4,6 +4,7 @@ export interface User {
   id: string;
   email: string;
   full_name: string;
+  professional_title?: string | null;
   avatar_url?: string | null;
   is_active: boolean;
   is_superuser: boolean;
@@ -66,6 +67,16 @@ export interface ProjectSummary {
 // Phase 1: Manual Testing Types
 // -------------------------------------------------------------
 export type TestCaseTemplate = 'STANDARD' | 'SIMPLE';
+export type TestCaseType = 
+  | 'FUNCTIONAL' 
+  | 'SMOKE' 
+  | 'SANITY' 
+  | 'REGRESSION' 
+  | 'INTEGRATION' 
+  | 'UI' 
+  | 'API' 
+  | 'NEGATIVE' 
+  | 'EDGE_CASE';
 export type TestCasePriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 export type TestCaseStatus = 'DRAFT' | 'ACTIVE' | 'DEPRECATED' | 'ARCHIVED';
 export type TestRunStatus = 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'ABORTED';
@@ -101,8 +112,10 @@ export interface TestCase {
   title: string;
   description?: string | null;
   template_type: TestCaseTemplate;
+  test_type: TestCaseType;
   priority: TestCasePriority;
   status: TestCaseStatus;
+  tags?: string[];
   preconditions?: string | null;
   test_data?: string | null;
   expected_result?: string | null;
@@ -149,6 +162,7 @@ export interface TestRunItemStepResult {
   step_number: number;
   action: string;
   expected_result: string;
+  test_data?: string | null;
   actual_result?: string | null;
   status: ExecutionStatus;
 }
@@ -165,6 +179,8 @@ export interface TestRunItem {
   test_data?: string | null;
   expected_result?: string | null;
   priority: string;
+  test_type?: string;
+  tags?: string[];
   status: ExecutionStatus;
   actual_result?: string | null;
   notes?: string | null;

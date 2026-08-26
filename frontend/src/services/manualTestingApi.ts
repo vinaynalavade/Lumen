@@ -41,6 +41,8 @@ export const manualTestingApi = {
       module_id?: string;
       priority?: TestCasePriority;
       status?: TestCaseStatus;
+      test_type?: string;
+      tag?: string;
       search?: string;
     }
   ): Promise<TestCase[]> => {
@@ -48,6 +50,8 @@ export const manualTestingApi = {
     if (params?.module_id) searchParams.append('module_id', params.module_id);
     if (params?.priority) searchParams.append('priority', params.priority);
     if (params?.status) searchParams.append('status', params.status);
+    if (params?.test_type) searchParams.append('test_type', params.test_type);
+    if (params?.tag) searchParams.append('tag', params.tag);
     if (params?.search) searchParams.append('search', params.search);
 
     const query = searchParams.toString();

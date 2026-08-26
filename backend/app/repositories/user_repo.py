@@ -17,7 +17,8 @@ class UserRepository(BaseRepository[User]):
         db_obj = User(
             email=obj_in.email.lower().strip(),
             hashed_password=get_password_hash(obj_in.password),
-            full_name=obj_in.full_name,
+            full_name=obj_in.full_name.strip(),
+            professional_title=obj_in.professional_title.strip() if obj_in.professional_title else None,
             is_active=True,
             is_superuser=False
         )

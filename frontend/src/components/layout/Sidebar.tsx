@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useParams } from 'react-router-dom';
+import { NavLink, useParams, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -14,8 +14,24 @@ import { useWorkspace } from '../../context/WorkspaceContext';
 export const Sidebar: React.FC = () => {
   const { activeWorkspace, activeProject } = useWorkspace();
   const { projectId } = useParams<{ projectId: string }>();
+  const location = useLocation();
 
   const currentProjId = projectId || activeProject?.id;
+  const pathname = location.pathname;
+
+  // Exact matching for Project Cockpit vs Manual Testing child routes
+  const isCockpitActive = Boolean(
+    currentProjId
+      ? pathname === `/projects/${currentProjId}` || pathname === `/projects/${currentProjId}/`
+      : pathname === '/projects'
+  );
+
+  const isManualActive = Boolean(
+    pathname.includes('/manual') ||
+    pathname.includes('/test-cases') ||
+    pathname.includes('/test-suites') ||
+    pathname.includes('/test-runs')
+  );
 
   const navItems = [
     {
@@ -24,6 +40,7 @@ export const Sidebar: React.FC = () => {
       icon: LayoutDashboard,
       phase: 'Phase 0',
       active: true,
+      isCurrentlyActive: isCockpitActive,
     },
     {
       name: 'Manual Testing',
@@ -31,6 +48,7 @@ export const Sidebar: React.FC = () => {
       icon: ClipboardList,
       phase: 'Phase 1',
       active: true,
+      isCurrentlyActive: isManualActive,
     },
     {
       name: 'Defect Tracker',
@@ -38,6 +56,7 @@ export const Sidebar: React.FC = () => {
       icon: Bug,
       phase: 'Phase 2',
       active: false,
+      isCurrentlyActive: false,
     },
     {
       name: 'API Testing',
@@ -45,6 +64,7 @@ export const Sidebar: React.FC = () => {
       icon: Zap,
       phase: 'Phase 3',
       active: false,
+      isCurrentlyActive: false,
     },
     {
       name: 'Database Testing',
@@ -52,6 +72,7 @@ export const Sidebar: React.FC = () => {
       icon: Database,
       phase: 'Phase 4',
       active: false,
+      isCurrentlyActive: false,
     },
     {
       name: 'Automation (Selenium)',
@@ -59,6 +80,7 @@ export const Sidebar: React.FC = () => {
       icon: Bot,
       phase: 'Phase 5',
       active: false,
+      isCurrentlyActive: false,
     },
     {
       name: 'Unified Reports',
@@ -66,6 +88,7 @@ export const Sidebar: React.FC = () => {
       icon: BarChart3,
       phase: 'Phase 7',
       active: false,
+      isCurrentlyActive: false,
     },
   ];
 
@@ -154,49 +177,51 @@ export const Sidebar: React.FC = () => {
           QA Modules
         </div>
 
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isCockpit = item.name === 'Project Cockpit';
+            const isActive = item.isCurrentlyActive;
 
             return (
               <NavLink
                 key={item.name}
                 to={item.path}
-                style={({ isActive }) => ({
+                style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '9px 12px',
                   borderRadius: 'var(--radius-md)',
                   fontSize: '0.875rem',
-                  fontWeight: isActive && isCockpit ? 600 : 400,
-                  color: isActive && isCockpit ? '#ffffff' : item.active ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  backgroundColor: isActive && isCockpit ? 'var(--primary)' : 'transparent',
-                  opacity: item.active || isCockpit ? 1 : 0.7,
+                  fontWeight: isActive ? 600 : 400,
+                  color: isActive ? '#ffffff' : item.active ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  backgroundColor: isActive ? 'var(--primary)' : 'transparent',
+                  boxShadow: isActive ? '0 0 12px rgba(79, 70, 229, 0.35)' : 'none',
+                  opacity: item.active ? 1 : 0.65,
                   transition: 'all var(--transition-fast)',
-                })}
+                  textDecoration: 'none',
+                }}
                 onMouseEnter={(e) => {
-                  if (!e.currentTarget.style.backgroundColor.includes('var(--primary)')) {
+                  if (!isActive) {
                     e.currentTarget.style.backgroundColor = 'var(--bg-subtle)';
                     e.currentTarget.style.color = 'var(--text-primary)';
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (!e.currentTarget.style.backgroundColor.includes('var(--primary)')) {
+                  if (!isActive) {
                     e.currentTarget.style.backgroundColor = 'transparent';
                     e.currentTarget.style.color = item.active ? 'var(--text-primary)' : 'var(--text-secondary)';
                   }
                 }}
                 onClick={(e) => {
-                  if (!item.active && !isCockpit) {
+                  if (!item.active) {
                     e.preventDefault();
                     alert(`${item.name} will be unlocked in ${item.phase}!`);
                   }
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Icon size={18} />
+                  <Icon size={18} color={isActive ? '#ffffff' : undefined} />
                   <span>{item.name}</span>
                 </div>
                 <span
@@ -204,8 +229,8 @@ export const Sidebar: React.FC = () => {
                     fontSize: '0.6875rem',
                     padding: '2px 6px',
                     borderRadius: 'var(--radius-sm)',
-                    backgroundColor: item.active || isCockpit ? 'rgba(255,255,255,0.1)' : 'var(--bg-subtle)',
-                    color: item.active || isCockpit ? '#ffffff' : 'var(--text-muted)',
+                    backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : 'var(--bg-subtle)',
+                    color: isActive ? '#ffffff' : 'var(--text-muted)',
                     fontFamily: 'var(--font-mono)',
                   }}
                 >

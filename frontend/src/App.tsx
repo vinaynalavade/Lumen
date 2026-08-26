@@ -5,6 +5,7 @@ import { WorkspaceProvider } from './context/WorkspaceContext';
 import { AppLayout } from './components/layout/AppLayout';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
+import { OnboardingPage } from './pages/onboarding/OnboardingPage';
 import { ProjectsPage } from './pages/projects/ProjectsPage';
 import { ProjectDashboardPage } from './pages/projects/ProjectDashboardPage';
 import { WorkspacesPage } from './pages/workspaces/WorkspacesPage';
@@ -81,6 +82,16 @@ export const App: React.FC = () => {
                 <PublicRoute>
                   <RegisterPage />
                 </PublicRoute>
+              }
+            />
+
+            {/* Onboarding Flow */}
+            <Route
+              path="/onboarding"
+              element={
+                <ProtectedRoute>
+                  <OnboardingPage />
+                </ProtectedRoute>
               }
             />
 

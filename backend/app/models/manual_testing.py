@@ -18,6 +18,18 @@ class TestCaseTemplate(str, enum.Enum):
     SIMPLE = "SIMPLE"
 
 
+class TestCaseType(str, enum.Enum):
+    FUNCTIONAL = "FUNCTIONAL"
+    SMOKE = "SMOKE"
+    SANITY = "SANITY"
+    REGRESSION = "REGRESSION"
+    INTEGRATION = "INTEGRATION"
+    UI = "UI"
+    API = "API"
+    NEGATIVE = "NEGATIVE"
+    EDGE_CASE = "EDGE_CASE"
+
+
 class TestCasePriority(str, enum.Enum):
     CRITICAL = "CRITICAL"
     HIGH = "HIGH"
@@ -81,8 +93,10 @@ class TestCase(BaseModel):
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     template_type = Column(SQLEnum(TestCaseTemplate), default=TestCaseTemplate.STANDARD, nullable=False)
+    test_type = Column(SQLEnum(TestCaseType), default=TestCaseType.FUNCTIONAL, nullable=False)
     priority = Column(SQLEnum(TestCasePriority), default=TestCasePriority.MEDIUM, nullable=False)
     status = Column(SQLEnum(TestCaseStatus), default=TestCaseStatus.ACTIVE, nullable=False)
+    tags = Column(String(500), nullable=True)
     preconditions = Column(Text, nullable=True)
     test_data = Column(Text, nullable=True)
     expected_result = Column(Text, nullable=True)
@@ -184,6 +198,8 @@ class TestRunItem(BaseModel):
     test_data = Column(Text, nullable=True)
     expected_result = Column(Text, nullable=True)
     priority = Column(String(20), default="MEDIUM", nullable=False)
+    test_type = Column(String(50), default="FUNCTIONAL", nullable=False)
+    tags = Column(String(500), nullable=True)
 
     # Execution State
     status = Column(SQLEnum(ExecutionStatus), default=ExecutionStatus.UNTESTED, nullable=False)
@@ -209,6 +225,7 @@ class TestRunItemStepResult(BaseModel):
     step_number = Column(Integer, nullable=False)
     action = Column(Text, nullable=False)
     expected_result = Column(Text, nullable=False)
+    test_data = Column(Text, nullable=True)
     actual_result = Column(Text, nullable=True)
     status = Column(SQLEnum(ExecutionStatus), default=ExecutionStatus.UNTESTED, nullable=False)
 

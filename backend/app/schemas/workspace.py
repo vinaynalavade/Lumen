@@ -34,6 +34,10 @@ class WorkspaceMemberAdd(BaseModel):
     role: WorkspaceRole = WorkspaceRole.MEMBER
 
 
+class WorkspaceMemberUpdate(BaseModel):
+    role: WorkspaceRole
+
+
 class WorkspaceResponse(WorkspaceBase):
     id: str
     slug: str

@@ -1,0 +1,405 @@
+from datetime import datetime, timezone
+from typing import List, Optional, Tuple, Dict, Any
+from sqlalchemy.orm import Session
+from sqlalchemy import func, desc, or_
+
+from app.models.manual_testing import (
+    TestModule,
+    TestCase,
+    TestCaseStep,
+    TestSuite,
+    TestSuiteTestCase,
+    TestRun,
+    TestRunItem,
+    TestRunItemStepResult,
+    ExecutionEvidence,
+    TestCaseStatus,
+    TestCasePriority,
+    TestRunStatus,
+    ExecutionStatus,
+    EvidenceType,
+)
+from app.models.project import Project
+from app.repositories.base import BaseRepository
+from app.schemas.manual_testing import (
+    TestModuleCreate,
+    TestModuleUpdate,
+    TestCaseCreate,
+    TestCaseUpdate,
+    TestSuiteCreate,
+    TestSuiteUpdate,
+    TestRunCreate,
+    ExecuteTestItemRequest,
+    ExecutionEvidenceCreate,
+)
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+# 1. Test Module Repository
+class TestModuleRepository(BaseRepository[TestModule]):
+    def __init__(self):
+        super().__init__(TestModule)
+
+    def get_project_modules(self, db: Session, project_id: str) -> List[TestModule]:
+        return (
+            db.query(TestModule)
+            .filter(TestModule.project_id == project_id)
+            .order_by(TestModule.name.asc())
+            .all()
+        )
+
+    def create_module(self, db: Session, project_id: str, obj_in: TestModuleCreate) -> TestModule:
+        db_obj = TestModule(
+            project_id=project_id,
+            parent_id=obj_in.parent_id,
+            name=obj_in.name.strip(),
+            description=obj_in.description.strip() if obj_in.description else None,
+        )
+        db.add(db_obj)
+        db.commit()
+        db.refresh(db_obj)
+        return db_obj
+
+
+# 2. Test Case Repository
+class TestCaseRepository(BaseRepository[TestCase]):
+    def __init__(self):
+        super().__init__(TestCase)
+
+    def get_next_case_number(self, db: Session, project_id: str) -> int:
+        max_num = (
+            db.query(func.max(TestCase.case_number))
+            .filter(TestCase.project_id == project_id)
+            .scalar()
+        )
+        return (max_num or 0) + 1
+
+    def get_project_cases(
+        self,
+        db: Session,
+        project_id: str,
+        module_id: Optional[str] = None,
+        priority: Optional[TestCasePriority] = None,
+        status: Optional[TestCaseStatus] = None,
+        search: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> Tuple[List[TestCase], int]:
+        query = db.query(TestCase).filter(TestCase.project_id == project_id)
+
+        if module_id:
+            query = query.filter(TestCase.module_id == module_id)
+        if priority:
+            query = query.filter(TestCase.priority == priority)
+        if status:
+            query = query.filter(TestCase.status == status)
+        else:
+            # By default exclude ARCHIVED unless explicitly filtered
+            query = query.filter(TestCase.status != TestCaseStatus.ARCHIVED)
+
+        if search:
+            search_pattern = f"%{search.strip()}%"
+            query = query.filter(
+                or_(
+                    TestCase.title.ilike(search_pattern),
+                    TestCase.key.ilike(search_pattern),
+                    TestCase.description.ilike(search_pattern),
+                )
+            )
+
+        total = query.count()
+        cases = query.order_by(TestCase.case_number.asc()).offset(skip).limit(limit).all()
+        return cases, total
+
+    def create_case_with_steps(
+        self, db: Session, project: Project, obj_in: TestCaseCreate, user_id: str
+    ) -> TestCase:
+        next_num = self.get_next_case_number(db, project.id)
+        key = f"{project.key}-TC-{next_num}"
+
+        db_case = TestCase(
+            project_id=project.id,
+            module_id=obj_in.module_id,
+            case_number=next_num,
+            key=key,
+            title=obj_in.title.strip(),
+            description=obj_in.description,
+            template_type=obj_in.template_type,
+            priority=obj_in.priority,
+            status=obj_in.status,
+            preconditions=obj_in.preconditions,
+            test_data=obj_in.test_data,
+            expected_result=obj_in.expected_result,
+            estimated_duration_minutes=obj_in.estimated_duration_minutes,
+            created_by_id=user_id,
+            updated_by_id=user_id,
+        )
+        db.add(db_case)
+        db.flush()
+
+        # Add steps if present
+        for idx, step_in in enumerate(obj_in.steps, start=1):
+            db_step = TestCaseStep(
+                test_case_id=db_case.id,
+                step_number=idx,
+                action=step_in.action.strip(),
+                expected_result=step_in.expected_result.strip(),
+                test_data=step_in.test_data,
+            )
+            db.add(db_step)
+
+        db.commit()
+        db.refresh(db_case)
+        return db_case
+
+    def update_case_with_steps(
+        self, db: Session, db_case: TestCase, obj_in: TestCaseUpdate, user_id: str
+    ) -> TestCase:
+        update_data = obj_in.model_dump(exclude_unset=True)
+
+        # Update case attributes
+        for field in [
+            "title",
+            "description",
+            "module_id",
+            "template_type",
+            "priority",
+            "status",
+            "preconditions",
+            "test_data",
+            "expected_result",
+            "estimated_duration_minutes",
+        ]:
+            if field in update_data:
+                setattr(db_case, field, update_data[field])
+
+        db_case.updated_by_id = user_id
+        db_case.updated_at = utc_now()
+
+        # Replace steps if supplied
+        if "steps" in update_data and obj_in.steps is not None:
+            # Delete existing steps
+            db.query(TestCaseStep).filter(TestCaseStep.test_case_id == db_case.id).delete()
+            # Add updated steps
+            for idx, step_in in enumerate(obj_in.steps, start=1):
+                db_step = TestCaseStep(
+                    test_case_id=db_case.id,
+                    step_number=idx,
+                    action=step_in.action.strip(),
+                    expected_result=step_in.expected_result.strip(),
+                    test_data=step_in.test_data,
+                )
+                db.add(db_step)
+
+        db.commit()
+        db.refresh(db_case)
+        return db_case
+
+    def get_case_history(self, db: Session, test_case_id: str) -> List[TestRunItem]:
+        return (
+            db.query(TestRunItem)
+            .join(TestRun, TestRunItem.test_run_id == TestRun.id)
+            .filter(TestRunItem.test_case_id == test_case_id)
+            .order_by(desc(TestRunItem.executed_at), desc(TestRun.created_at))
+            .all()
+        )
+
+
+# 3. Test Suite Repository
+class TestSuiteRepository(BaseRepository[TestSuite]):
+    def __init__(self):
+        super().__init__(TestSuite)
+
+    def get_project_suites(self, db: Session, project_id: str) -> List[TestSuite]:
+        return (
+            db.query(TestSuite)
+            .filter(TestSuite.project_id == project_id)
+            .order_by(TestSuite.created_at.desc())
+            .all()
+        )
+
+    def create_suite_with_cases(
+        self, db: Session, project_id: str, obj_in: TestSuiteCreate, user_id: str
+    ) -> TestSuite:
+        db_suite = TestSuite(
+            project_id=project_id,
+            name=obj_in.name.strip(),
+            description=obj_in.description,
+            created_by_id=user_id,
+        )
+        db.add(db_suite)
+        db.flush()
+
+        for idx, case_id in enumerate(obj_in.test_case_ids):
+            membership = TestSuiteTestCase(
+                suite_id=db_suite.id,
+                test_case_id=case_id,
+                order_index=idx,
+            )
+            db.add(membership)
+
+        db.commit()
+        db.refresh(db_suite)
+        return db_suite
+
+    def set_suite_cases(self, db: Session, suite_id: str, test_case_ids: List[str]) -> None:
+        db.query(TestSuiteTestCase).filter(TestSuiteTestCase.suite_id == suite_id).delete()
+        for idx, case_id in enumerate(test_case_ids):
+            membership = TestSuiteTestCase(
+                suite_id=suite_id,
+                test_case_id=case_id,
+                order_index=idx,
+            )
+            db.add(membership)
+        db.commit()
+
+
+# 4. Test Run Repository (Execution & Snapshots)
+class TestRunRepository(BaseRepository[TestRun]):
+    def __init__(self):
+        super().__init__(TestRun)
+
+    def get_project_runs(self, db: Session, project_id: str) -> List[TestRun]:
+        return (
+            db.query(TestRun)
+            .filter(TestRun.project_id == project_id)
+            .order_by(TestRun.created_at.desc())
+            .all()
+        )
+
+    def create_run_with_snapshots(
+        self,
+        db: Session,
+        project_id: str,
+        obj_in: TestRunCreate,
+        test_cases: List[TestCase],
+        user_id: str,
+    ) -> TestRun:
+        db_run = TestRun(
+            project_id=project_id,
+            suite_id=obj_in.suite_id,
+            name=obj_in.name.strip(),
+            environment=obj_in.environment.strip(),
+            status=TestRunStatus.IN_PROGRESS,
+            created_by_id=user_id,
+            started_at=utc_now(),
+        )
+        db.add(db_run)
+        db.flush()
+
+        # Create snapshots of each test case and its steps
+        for idx, tc in enumerate(test_cases):
+            run_item = TestRunItem(
+                test_run_id=db_run.id,
+                test_case_id=tc.id,
+                order_index=idx,
+                case_key=tc.key,
+                title=tc.title,
+                description=tc.description,
+                preconditions=tc.preconditions,
+                test_data=tc.test_data,
+                expected_result=tc.expected_result,
+                priority=tc.priority.value,
+                status=ExecutionStatus.UNTESTED,
+            )
+            db.add(run_item)
+            db.flush()
+
+            # Snapshot steps
+            for step in tc.steps:
+                step_res = TestRunItemStepResult(
+                    test_run_item_id=run_item.id,
+                    step_number=step.step_number,
+                    action=step.action,
+                    expected_result=step.expected_result,
+                    status=ExecutionStatus.UNTESTED,
+                )
+                db.add(step_res)
+
+        db.commit()
+        db.refresh(db_run)
+        return db_run
+
+    def execute_item(
+        self,
+        db: Session,
+        item: TestRunItem,
+        req: ExecuteTestItemRequest,
+        user_id: str,
+    ) -> TestRunItem:
+        item.status = req.status
+        item.actual_result = req.actual_result
+        item.notes = req.notes
+        item.duration_seconds = req.duration_seconds or 0
+        item.executed_by_id = user_id
+        item.executed_at = utc_now()
+
+        # Update step statuses if supplied
+        if req.step_results:
+            step_map = {s.step_number: s for s in item.step_results}
+            for input_step in req.step_results:
+                if input_step.step_number in step_map:
+                    step_obj = step_map[input_step.step_number]
+                    step_obj.status = input_step.status
+                    if input_step.actual_result is not None:
+                        step_obj.actual_result = input_step.actual_result
+
+        db.commit()
+        db.refresh(item)
+
+        # Check if all items in test run are completed
+        self.check_and_update_run_completion(db, item.test_run_id)
+
+        return item
+
+    def check_and_update_run_completion(self, db: Session, test_run_id: str) -> None:
+        run = db.get(TestRun, test_run_id)
+        if not run or run.status == TestRunStatus.COMPLETED:
+            return
+
+        untested = (
+            db.query(TestRunItem)
+            .filter(
+                TestRunItem.test_run_id == test_run_id,
+                TestRunItem.status == ExecutionStatus.UNTESTED,
+            )
+            .count()
+        )
+        if untested == 0 and len(run.items) > 0:
+            run.status = TestRunStatus.COMPLETED
+            run.completed_at = utc_now()
+            db.commit()
+
+    def add_evidence(
+        self,
+        db: Session,
+        item_id: str,
+        obj_in: ExecutionEvidenceCreate,
+        file_path: Optional[str] = None,
+        file_name: Optional[str] = None,
+        mime_type: Optional[str] = None,
+        file_size_bytes: Optional[int] = None,
+    ) -> ExecutionEvidence:
+        evidence = ExecutionEvidence(
+            test_run_item_id=item_id,
+            evidence_type=obj_in.evidence_type,
+            title=obj_in.title,
+            content=obj_in.content,
+            file_path=file_path,
+            file_name=file_name,
+            mime_type=mime_type,
+            file_size_bytes=file_size_bytes,
+        )
+        db.add(evidence)
+        db.commit()
+        db.refresh(evidence)
+        return evidence
+
+
+test_module_repo = TestModuleRepository()
+test_case_repo = TestCaseRepository()
+test_suite_repo = TestSuiteRepository()
+test_run_repo = TestRunRepository()

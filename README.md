@@ -55,10 +55,17 @@ Frontend application will run at `http://localhost:5173`.
 
 ---
 
+## 🌐 Live Demo & Deployment
+
+- **GitHub Pages Frontend**: [https://vinaynalavade.github.io/Lumen/](https://vinaynalavade.github.io/Lumen/)
+- Continuous Deployment is automated via GitHub Actions on every push to `main`.
+
+---
+
 ## 🗺️ Roadmap Phases
 
 - [x] **Phase 0 — Foundation**: Auth, Users, Workspaces, Projects, QA Cockpit & Design System
-- [ ] **Phase 1 — Manual Testing**: Test Cases, Suites, Plans, Runs, Execution Records
+- [x] **Phase 1 — Manual Testing**: Test Cases, Suites, Plans, Runs, Execution Records
 - [ ] **Phase 2 — Bug Tracking**: Defect Lifecycle, Severity/Priority, Failed Test to Bug Linking
 - [ ] **Phase 3 — API Testing**: Collections, Endpoints, Assertions, Response Viewer
 - [ ] **Phase 4 — Database Testing**: Connection Config, Queries, Data Comparison, API-to-DB

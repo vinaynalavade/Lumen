@@ -48,7 +48,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     authApi.logout();
     setUser(null);
-    window.location.href = '/login';
+    const base = import.meta.env.BASE_URL || '/';
+    const loginPath = base.endsWith('/') ? `${base}login` : `${base}/login`;
+    window.location.href = loginPath;
   };
 
   const refreshUser = async () => {

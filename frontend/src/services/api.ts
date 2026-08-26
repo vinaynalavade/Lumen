@@ -38,9 +38,12 @@ export class ApiClient {
 
     if (response.status === 401) {
       // Clear token and handle unauthorized redirect if not already on auth page
-      if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/register')) {
+      const isAuthPage = window.location.pathname.includes('/login') || window.location.pathname.includes('/register');
+      if (!isAuthPage) {
         this.removeToken();
-        window.location.href = '/login';
+        const base = import.meta.env.BASE_URL || '/';
+        const loginPath = base.endsWith('/') ? `${base}login` : `${base}/login`;
+        window.location.href = loginPath;
       }
     }
 

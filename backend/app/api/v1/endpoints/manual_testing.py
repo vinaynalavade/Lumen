@@ -4,7 +4,13 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user
 from app.models.user import User
-from app.models.manual_testing import TestCasePriority, TestCaseStatus, TestCaseType
+from app.models.manual_testing import (
+    TestCasePriority,
+    TestCaseSeverity,
+    TestCaseStatus,
+    TestCaseReviewStatus,
+    TestCaseType,
+)
 from app.services.manual_testing_service import manual_testing_service
 from app.schemas.manual_testing import (
     TestModuleCreate,
@@ -12,6 +18,11 @@ from app.schemas.manual_testing import (
     TestModuleResponse,
     TestCaseCreate,
     TestCaseUpdate,
+    TestCaseMoveModuleRequest,
+    TestCaseBulkMoveRequest,
+    TestCaseSubmitReviewRequest,
+    TestCaseReviewCreate,
+    TestCaseReviewResponse,
     TestCaseResponse,
     TestCaseDetailResponse,
     TestSuiteCreate,
@@ -23,6 +34,7 @@ from app.schemas.manual_testing import (
     TestRunResponse,
     TestRunDetailResponse,
     TestRunItemResponse,
+    TestRunItemAssignRequest,
     ExecuteTestItemRequest,
     ExecutionEvidenceCreate,
     ExecutionEvidenceResponse,
@@ -84,8 +96,12 @@ def delete_module(
 def get_project_test_cases(
     project_id: str,
     module_id: Optional[str] = Query(None, description="Filter by module"),
+    unassigned_only: bool = Query(False, description="Filter for unassigned test cases"),
     priority: Optional[TestCasePriority] = Query(None, description="Filter by priority"),
+    severity: Optional[TestCaseSeverity] = Query(None, description="Filter by severity"),
     status: Optional[TestCaseStatus] = Query(None, description="Filter by status"),
+    review_status: Optional[TestCaseReviewStatus] = Query(None, description="Filter by review status"),
+    reviewer_id: Optional[str] = Query(None, description="Filter by reviewer"),
     test_type: Optional[TestCaseType] = Query(None, description="Filter by test type"),
     tag: Optional[str] = Query(None, description="Filter by tag"),
     search: Optional[str] = Query(None, description="Search query across title, key, desc, tags"),
@@ -94,9 +110,23 @@ def get_project_test_cases(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List test cases in a project with filtering."""
+    """List test cases in a project with comprehensive filtering."""
     return manual_testing_service.get_test_cases(
-        db, project_id, current_user, module_id, priority, status, test_type, tag, search, skip, limit
+        db=db,
+        project_id=project_id,
+        current_user=current_user,
+        module_id=module_id,
+        unassigned_only=unassigned_only,
+        priority=priority,
+        severity=severity,
+        status=status,
+        review_status=review_status,
+        reviewer_id=reviewer_id,
+        test_type=test_type,
+        tag=tag,
+        search=search,
+        skip=skip,
+        limit=limit,
     )
 
 
@@ -117,7 +147,7 @@ def get_test_case_detail(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get test case details including all steps."""
+    """Get test case details including all steps and review history."""
     return manual_testing_service.get_test_case_detail(db, case_id, current_user)
 
 
@@ -130,6 +160,85 @@ def update_test_case(
 ):
     """Update test case details and steps."""
     return manual_testing_service.update_test_case(db, case_id, case_in, current_user)
+
+
+@router.put("/test-cases/{case_id}/move-module", response_model=TestCaseDetailResponse)
+def move_test_case_module(
+    case_id: str,
+    req: TestCaseMoveModuleRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Move a test case to a different module or unassign it."""
+    return manual_testing_service.move_test_case_module(db, case_id, req, current_user)
+
+
+@router.post("/projects/{project_id}/test-cases/bulk-move")
+def bulk_move_test_cases(
+    project_id: str,
+    req: TestCaseBulkMoveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Move multiple test cases to a target module or unassign them."""
+    return manual_testing_service.bulk_move_test_cases(db, project_id, req, current_user)
+
+
+# -------------------------------------------------------------
+# 2b. Test Case Review Governance Workflow
+# -------------------------------------------------------------
+@router.post("/test-cases/{case_id}/submit-review", response_model=TestCaseDetailResponse)
+def submit_test_case_for_review(
+    case_id: str,
+    req: TestCaseSubmitReviewRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Submit a draft test case for peer review and assign a reviewer."""
+    return manual_testing_service.submit_for_review(db, case_id, req, current_user)
+
+
+@router.post("/test-cases/{case_id}/approve", response_model=TestCaseDetailResponse)
+def approve_test_case(
+    case_id: str,
+    req: TestCaseReviewCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Approve test case and mark it ready for execution."""
+    return manual_testing_service.approve_test_case(db, case_id, req, current_user)
+
+
+@router.post("/test-cases/{case_id}/request-changes", response_model=TestCaseDetailResponse)
+def request_changes_on_test_case(
+    case_id: str,
+    req: TestCaseReviewCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Request changes on test case with reviewer feedback."""
+    return manual_testing_service.request_changes(db, case_id, req, current_user)
+
+
+@router.post("/test-cases/{case_id}/reject", response_model=TestCaseDetailResponse)
+def reject_test_case(
+    case_id: str,
+    req: TestCaseReviewCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Reject test case with reviewer feedback."""
+    return manual_testing_service.reject_test_case(db, case_id, req, current_user)
+
+
+@router.get("/test-cases/{case_id}/reviews", response_model=List[TestCaseReviewResponse])
+def get_test_case_reviews(
+    case_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get review audit history for a test case."""
+    return manual_testing_service.get_test_case_reviews(db, case_id, current_user)
 
 
 @router.patch("/test-cases/{case_id}/archive", response_model=TestCaseResponse)
@@ -262,6 +371,18 @@ def get_test_run_detail(
     return manual_testing_service.get_run_detail(db, run_id, current_user)
 
 
+@router.post("/runs/{run_id}/items/{item_id}/assign", response_model=TestRunItemResponse)
+def assign_test_run_item(
+    run_id: str,
+    item_id: str,
+    req: TestRunItemAssignRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Assign test run item to a designated executor."""
+    return manual_testing_service.assign_test_run_item(db, run_id, item_id, req, current_user)
+
+
 @router.post("/runs/{run_id}/items/{item_id}/execute", response_model=TestRunItemResponse)
 def execute_test_run_item(
     run_id: str,
@@ -270,7 +391,7 @@ def execute_test_run_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Record execution status, actual results, step statuses, and notes for a test run item."""
+    """Record execution status, actual results, step statuses, duration, and notes for a test run item."""
     return manual_testing_service.execute_test_run_item(db, run_id, item_id, req, current_user)
 
 

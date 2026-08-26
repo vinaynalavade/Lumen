@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, ArrowRight, Sparkles } from 'lucide-react';
 import { AuthLayout } from '../../components/layout/AuthLayout';
 import { Input } from '../../components/common/Input';
@@ -9,7 +9,11 @@ import { useAuth } from '../../context/AuthContext';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+
+  const searchParams = new URLSearchParams(location.search);
+  const redirectPath = searchParams.get('redirect') || '/projects';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +32,7 @@ export const LoginPage: React.FC = () => {
     try {
       const response = await authApi.login({ email, password });
       login(response.access_token, response.user);
-      navigate('/projects');
+      navigate(redirectPath);
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {

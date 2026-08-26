@@ -21,17 +21,21 @@ class WorkspaceRepository(BaseRepository[Workspace]):
     def get_by_slug(self, db: Session, slug: str) -> Optional[Workspace]:
         return db.query(Workspace).filter(Workspace.slug == slug).first()
 
-    def get_user_workspaces(self, db: Session, user_id: str) -> List[Workspace]:
+    def get_user_workspaces(
+        self, db: Session, user_id: str, organization_id: Optional[str] = None
+    ) -> List[Workspace]:
         # Return all workspaces where the user is an owner or member
-        return (
+        query = (
             db.query(Workspace)
             .join(WorkspaceMember, Workspace.id == WorkspaceMember.workspace_id)
             .filter(WorkspaceMember.user_id == user_id)
-            .all()
         )
+        if organization_id:
+            query = query.filter(Workspace.organization_id == organization_id)
+        return query.distinct().all()
 
     def create_workspace_with_owner(
-        self, db: Session, obj_in: WorkspaceCreate, owner_id: str
+        self, db: Session, obj_in: WorkspaceCreate, owner_id: str, organization_id: Optional[str] = None
     ) -> Workspace:
         base_slug = obj_in.slug or slugify(obj_in.name)
         slug = base_slug
@@ -40,11 +44,13 @@ class WorkspaceRepository(BaseRepository[Workspace]):
             slug = f"{base_slug}-{counter}"
             counter += 1
 
+        org_id = obj_in.organization_id or organization_id
         db_workspace = Workspace(
             name=obj_in.name,
             slug=slug,
             description=obj_in.description,
-            owner_id=owner_id
+            owner_id=owner_id,
+            organization_id=org_id,
         )
         db.add(db_workspace)
         db.flush()

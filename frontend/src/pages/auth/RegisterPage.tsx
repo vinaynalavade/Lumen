@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, User, ArrowRight } from 'lucide-react';
 import { AuthLayout } from '../../components/layout/AuthLayout';
 import { Input } from '../../components/common/Input';
@@ -9,7 +9,11 @@ import { useAuth } from '../../context/AuthContext';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+
+  const searchParams = new URLSearchParams(location.search);
+  const redirectPath = searchParams.get('redirect');
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -51,7 +55,7 @@ export const RegisterPage: React.FC = () => {
       });
 
       login(authRes.access_token, authRes.user);
-      navigate('/onboarding');
+      navigate(redirectPath || '/onboarding');
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {

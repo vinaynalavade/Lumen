@@ -9,10 +9,14 @@ import {
   ShieldCheck,
   CheckCircle2,
   Sparkles,
+  Key,
+  Globe,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useOrganization } from '../../context/OrganizationContext';
 import { useWorkspace } from '../../context/WorkspaceContext';
 import { authApi } from '../../services/authApi';
+import { organizationApi } from '../../services/organizationApi';
 import { workspaceApi } from '../../services/workspaceApi';
 import { projectApi } from '../../services/projectApi';
 import { Input } from '../../components/common/Input';
@@ -33,20 +37,25 @@ const PREDEFINED_TITLES = [
 
 export const OnboardingPage: React.FC = () => {
   const { user, updateUser } = useAuth();
+  const { refreshOrganizations, selectOrganization } = useOrganization();
   const { refreshWorkspaces, setActiveWorkspace, setActiveProject } = useWorkspace();
   const navigate = useNavigate();
 
+  const [mode, setMode] = useState<'create' | 'join'>('create');
   const [step, setStep] = useState<1 | 2>(1);
 
   // Profile data
   const [selectedTitle, setSelectedTitle] = useState<string>(user?.professional_title || 'QA Lead');
   const [customTitle, setCustomTitle] = useState<string>('');
 
-  // Workspace & Project data
-  const [workspaceName, setWorkspaceName] = useState<string>('Engineering Quality Lab');
-  const [workspaceDesc, setWorkspaceDesc] = useState<string>('Main testing workspace for core applications and microservices');
+  // Organization & Workspace & Project data
+  const [orgName, setOrgName] = useState<string>('Acme Quality Global');
+  const [workspaceName, setWorkspaceName] = useState<string>('Core Engineering');
   const [projectName, setProjectName] = useState<string>('Core Web Platform');
   const [projectKey, setProjectKey] = useState<string>('CORE');
+
+  // Join Code data
+  const [joinCodeInput, setJoinCodeInput] = useState<string>('');
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,11 +72,15 @@ export const OnboardingPage: React.FC = () => {
     }
   };
 
-  const handleCompleteOnboarding = async (e: React.FormEvent) => {
+  const handleCompleteCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     const finalTitle = selectedTitle === 'Other' ? customTitle.trim() : selectedTitle;
+    if (!orgName.trim()) {
+      setError('Organization name is required.');
+      return;
+    }
     if (!workspaceName.trim()) {
       setError('Workspace name is required.');
       return;
@@ -87,29 +100,72 @@ export const OnboardingPage: React.FC = () => {
         updateUser(updatedUser);
       }
 
-      // 2. Create Workspace (user automatically becomes OWNER)
-      const newWorkspace = await workspaceApi.createWorkspace({
-        name: workspaceName.trim(),
-        description: workspaceDesc.trim() || undefined,
+      // 2. Create Organization with default workspace
+      const newOrg = await organizationApi.createOrganization({
+        name: orgName.trim(),
+        create_default_workspace: true,
+        default_workspace_name: workspaceName.trim(),
       });
 
-      // 3. Create First Project in Workspace
-      const newProject = await projectApi.createProject(newWorkspace.id, {
-        name: projectName.trim(),
-        key: projectKey.trim().toUpperCase(),
-        description: 'First quality project created during onboarding',
-      });
+      // 3. Refresh org context
+      await refreshOrganizations();
+      selectOrganization(newOrg.id);
 
-      // 4. Refresh workspace context & set active
+      // 4. Fetch workspaces to find the created one
       await refreshWorkspaces();
-      setActiveWorkspace(newWorkspace);
-      setActiveProject(newProject);
+      const userWorkspaces = await workspaceApi.getWorkspaces(newOrg.id);
+      const targetWs = userWorkspaces[0];
 
-      // 5. Navigate to project dashboard
-      navigate(`/projects/${newProject.id}`);
+      if (targetWs) {
+        const newProject = await projectApi.createProject(targetWs.id, {
+          name: projectName.trim(),
+          key: projectKey.trim().toUpperCase(),
+          description: 'First quality project created during onboarding',
+        });
+        setActiveWorkspace(targetWs);
+        setActiveProject(newProject);
+        navigate(`/projects/${newProject.id}`);
+      } else {
+        navigate('/projects');
+      }
     } catch (err: any) {
       console.error('Onboarding failed:', err);
       setError(err?.response?.data?.detail || err?.message || 'Failed to complete setup. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCompleteJoin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!joinCodeInput.trim()) {
+      setError('Please enter a valid join code.');
+      return;
+    }
+
+    const finalTitle = selectedTitle === 'Other' ? customTitle.trim() : selectedTitle;
+    setIsLoading(true);
+    try {
+      // 1. Update user title
+      if (finalTitle) {
+        const updatedUser = await authApi.updateProfile({
+          professional_title: finalTitle,
+        });
+        updateUser(updatedUser);
+      }
+
+      // 2. Join Organization by code
+      const joinedOrg = await organizationApi.joinByCode(joinCodeInput.trim().toUpperCase());
+      await refreshOrganizations();
+      selectOrganization(joinedOrg.id);
+      await refreshWorkspaces();
+
+      navigate('/projects');
+    } catch (err: any) {
+      console.error('Join failed:', err);
+      setError(err?.response?.data?.detail || err?.message || 'Failed to join organization with that code.');
     } finally {
       setIsLoading(false);
     }
@@ -146,7 +202,7 @@ export const OnboardingPage: React.FC = () => {
       <div
         style={{
           width: '100%',
-          maxWidth: '560px',
+          maxWidth: '580px',
           backgroundColor: 'var(--bg-card)',
           border: '1px solid var(--border-strong)',
           borderRadius: 'var(--radius-xl)',
@@ -157,7 +213,7 @@ export const OnboardingPage: React.FC = () => {
         }}
       >
         {/* Header Branding */}
-        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <div
             style={{
               width: '48px',
@@ -168,14 +224,14 @@ export const OnboardingPage: React.FC = () => {
               alignItems: 'center',
               justifyContent: 'center',
               boxShadow: 'var(--shadow-glow)',
-              marginBottom: '16px',
+              marginBottom: '14px',
             }}
           >
             <SunMedium size={26} color="#ffffff" />
           </div>
           <h1
             style={{
-              fontSize: '1.625rem',
+              fontSize: '1.5rem',
               fontWeight: 700,
               color: 'var(--text-primary)',
               letterSpacing: '-0.02em',
@@ -185,8 +241,43 @@ export const OnboardingPage: React.FC = () => {
             Welcome to LUMEN, {user?.full_name?.split(' ')[0] || 'Engineer'}!
           </h1>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-            Let's configure your workspace and first project to start testing.
+            Choose how you'd like to begin your quality testing workspace.
           </p>
+        </div>
+
+        {/* Mode Toggle: Create Org vs Join with Code */}
+        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950/80 rounded-xl border border-slate-800 mb-6">
+          <button
+            type="button"
+            onClick={() => {
+              setMode('create');
+              setError(null);
+            }}
+            className={`py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+              mode === 'create'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Building2 className="w-4 h-4" />
+            Create Organization
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMode('join');
+              setError(null);
+            }}
+            className={`py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+              mode === 'join'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Key className="w-4 h-4" />
+            Join with Code
+          </button>
         </div>
 
         {error && (
@@ -205,176 +296,237 @@ export const OnboardingPage: React.FC = () => {
           </div>
         )}
 
-        <form onSubmit={handleCompleteOnboarding}>
-          {step === 1 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div
-                style={{
-                  padding: '12px 16px',
-                  backgroundColor: 'rgba(6, 182, 212, 0.08)',
-                  border: '1px solid rgba(6, 182, 212, 0.25)',
-                  borderRadius: 'var(--radius-lg)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                }}
-              >
-                <ShieldCheck size={20} color="var(--accent-cyan)" />
-                <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}>
-                  You will automatically receive the <strong>OWNER</strong> role with full administration rights.
-                </div>
-              </div>
-
-              {/* Professional Title Selection */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Briefcase size={16} color="var(--primary)" />
-                  What is your professional title?
-                </label>
-                <select
-                  value={selectedTitle}
-                  onChange={(e) => setSelectedTitle(e.target.value)}
+        {/* 1. CREATE ORGANIZATION FLOW */}
+        {mode === 'create' && (
+          <form onSubmit={handleCompleteCreate}>
+            {step === 1 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                <div
                   style={{
-                    width: '100%',
-                    padding: '11px 14px',
-                    borderRadius: 'var(--radius-md)',
-                    backgroundColor: 'var(--bg-input)',
-                    border: '1px solid var(--border-strong)',
-                    color: 'var(--text-primary)',
-                    fontSize: '0.875rem',
-                    outline: 'none',
+                    padding: '12px 16px',
+                    backgroundColor: 'rgba(6, 182, 212, 0.08)',
+                    border: '1px solid rgba(6, 182, 212, 0.25)',
+                    borderRadius: 'var(--radius-lg)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
                   }}
                 >
-                  {PREDEFINED_TITLES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Professional title is for team collaboration and distinct from security permissions.
-                </span>
-              </div>
-
-              {selectedTitle === 'Other' && (
-                <Input
-                  label="Enter your custom title"
-                  value={customTitle}
-                  onChange={(e) => setCustomTitle(e.target.value)}
-                  placeholder="e.g. Lead Quality Architect"
-                  required
-                />
-              )}
-
-              {/* Workspace Setup */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
-                <label style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Building2 size={16} color="var(--primary)" />
-                  Workspace Name
-                </label>
-                <Input
-                  value={workspaceName}
-                  onChange={(e) => setWorkspaceName(e.target.value)}
-                  placeholder="e.g. Core Engineering QA"
-                  required
-                />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
-                  Workspace Description (Optional)
-                </label>
-                <Input
-                  value={workspaceDesc}
-                  onChange={(e) => setWorkspaceDesc(e.target.value)}
-                  placeholder="e.g. Main testing workspace for core platform"
-                />
-              </div>
-
-              <Button
-                type="button"
-                variant="primary"
-                onClick={() => {
-                  if (!workspaceName.trim()) {
-                    setError('Please provide a workspace name.');
-                    return;
-                  }
-                  setError(null);
-                  setStep(2);
-                }}
-                style={{ width: '100%', marginTop: '10px' }}
-              >
-                <span>Continue to Project Setup</span>
-                <ArrowRight size={16} />
-              </Button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div
-                style={{
-                  padding: '12px 16px',
-                  backgroundColor: 'rgba(79, 70, 229, 0.08)',
-                  border: '1px solid rgba(79, 70, 229, 0.25)',
-                  borderRadius: 'var(--radius-lg)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                }}
-              >
-                <Sparkles size={20} color="var(--primary)" />
-                <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}>
-                  Setting up initial project for <strong>{workspaceName}</strong>
+                  <ShieldCheck size={20} color="var(--accent-cyan)" />
+                  <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}>
+                    Creating an organization automatically grants you <strong>OWNER</strong> governance rights.
+                  </div>
                 </div>
-              </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <FolderDot size={16} color="var(--primary)" />
-                  First Project Name
-                </label>
-                <Input
-                  value={projectName}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  placeholder="e.g. E-Commerce Storefront"
-                  required
-                />
-              </div>
+                {/* Professional Title Selection */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Briefcase size={15} color="var(--primary)" />
+                    Professional Title (e.g. QA Lead)
+                  </label>
+                  <select
+                    value={selectedTitle}
+                    onChange={(e) => setSelectedTitle(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--bg-input)',
+                      border: '1px solid var(--border-strong)',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                    }}
+                  >
+                    {PREDEFINED_TITLES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  Project Key (Prefix for Test Cases, e.g. CORE-TC-1)
-                </label>
-                <Input
-                  value={projectKey}
-                  onChange={(e) => setProjectKey(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))}
-                  placeholder="e.g. ECOMM"
-                  maxLength={10}
-                  required
-                />
-              </div>
+                {selectedTitle === 'Other' && (
+                  <Input
+                    label="Enter custom title"
+                    value={customTitle}
+                    onChange={(e) => setCustomTitle(e.target.value)}
+                    placeholder="e.g. Lead Quality Architect"
+                    required
+                  />
+                )}
 
-              <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                {/* Organization Setup */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Globe size={15} color="var(--accent-cyan)" />
+                    Organization Name
+                  </label>
+                  <Input
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
+                    placeholder="e.g. Acme Global Quality"
+                    required
+                  />
+                </div>
+
+                {/* Initial Workspace Setup */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Building2 size={15} color="var(--primary)" />
+                    First Workspace Name
+                  </label>
+                  <Input
+                    value={workspaceName}
+                    onChange={(e) => setWorkspaceName(e.target.value)}
+                    placeholder="e.g. Core Engineering"
+                    required
+                  />
+                </div>
+
                 <Button
                   type="button"
-                  variant="secondary"
-                  onClick={() => setStep(1)}
-                  disabled={isLoading}
-                >
-                  Back
-                </Button>
-                <Button
-                  type="submit"
                   variant="primary"
-                  isLoading={isLoading}
-                  style={{ flex: 1 }}
+                  onClick={() => {
+                    if (!orgName.trim()) {
+                      setError('Please provide an organization name.');
+                      return;
+                    }
+                    if (!workspaceName.trim()) {
+                      setError('Please provide a workspace name.');
+                      return;
+                    }
+                    setError(null);
+                    setStep(2);
+                  }}
+                  style={{ width: '100%', marginTop: '6px' }}
                 >
-                  <CheckCircle2 size={16} />
-                  <span>Launch Testing Workspace</span>
+                  <span>Continue to Project Setup</span>
+                  <ArrowRight size={16} />
                 </Button>
               </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                <div
+                  style={{
+                    padding: '12px 16px',
+                    backgroundColor: 'rgba(79, 70, 229, 0.08)',
+                    border: '1px solid rgba(79, 70, 229, 0.25)',
+                    borderRadius: 'var(--radius-lg)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                  }}
+                >
+                  <Sparkles size={20} color="var(--primary)" />
+                  <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}>
+                    Setting up initial project for <strong>{workspaceName}</strong> under <strong>{orgName}</strong>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <FolderDot size={15} color="var(--primary)" />
+                    First Project Name
+                  </label>
+                  <Input
+                    value={projectName}
+                    onChange={(e) => handleNameChange(e.target.value)}
+                    placeholder="e.g. Core Web Platform"
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Project Key Prefix (for Test Cases, e.g. CORE-TC-1)
+                  </label>
+                  <Input
+                    value={projectKey}
+                    onChange={(e) => setProjectKey(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))}
+                    placeholder="e.g. CORE"
+                    maxLength={10}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setStep(1)}
+                    disabled={isLoading}
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    isLoading={isLoading}
+                    style={{ flex: 1 }}
+                  >
+                    <CheckCircle2 size={16} />
+                    <span>Launch Organization & Workspace</span>
+                  </Button>
+                </div>
+              </div>
+            )}
+          </form>
+        )}
+
+        {/* 2. JOIN ORGANIZATION FLOW */}
+        {mode === 'join' && (
+          <form onSubmit={handleCompleteJoin} className="space-y-4">
+            <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center gap-3">
+              <Key className="w-5 h-5 text-indigo-400 shrink-0" />
+              <div className="text-xs text-slate-200">
+                Enter the join code shared by your organization administrator (e.g. <strong>LUMEN-XXXX-YYYY</strong>).
+              </div>
             </div>
-          )}
-        </form>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                Join Code
+              </label>
+              <input
+                type="text"
+                placeholder="LUMEN-XXXX-YYYY"
+                value={joinCodeInput}
+                onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
+                className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-indigo-300 font-mono font-bold tracking-wider text-base focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                required
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                Your Professional Title
+              </label>
+              <select
+                value={selectedTitle}
+                onChange={(e) => setSelectedTitle(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-200 text-sm focus:outline-none"
+              >
+                {PREDEFINED_TITLES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <Button
+              type="submit"
+              variant="primary"
+              isLoading={isLoading}
+              style={{ width: '100%', marginTop: '12px' }}
+            >
+              <CheckCircle2 size={16} />
+              <span>Join Organization</span>
+            </Button>
+          </form>
+        )}
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import type { Workspace, Project } from '../types';
 import { workspaceApi } from '../services/workspaceApi';
 import { projectApi } from '../services/projectApi';
 import { useAuth } from './AuthContext';
+import { useOrganization } from './OrganizationContext';
 
 interface WorkspaceContextType {
   workspaces: Workspace[];
@@ -12,6 +13,7 @@ interface WorkspaceContextType {
   isLoading: boolean;
   setActiveWorkspace: (workspace: Workspace) => void;
   setActiveProject: (project: Project | null) => void;
+  createWorkspace: (name: string, description?: string) => Promise<Workspace>;
   refreshWorkspaces: () => Promise<void>;
   refreshProjects: () => Promise<void>;
 }
@@ -20,6 +22,7 @@ const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefin
 
 export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useAuth();
+  const { currentOrganization } = useOrganization();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspace, setActiveWorkspaceState] = useState<Workspace | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -30,7 +33,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!isAuthenticated) return;
     setIsLoading(true);
     try {
-      const wsList = await workspaceApi.getWorkspaces();
+      const wsList = await workspaceApi.getWorkspaces(currentOrganization?.id);
       setWorkspaces(wsList);
 
       const savedWsId = localStorage.getItem('lumen_active_workspace_id');
@@ -42,6 +45,9 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (currentWs) {
         setActiveWorkspaceState(currentWs);
         localStorage.setItem('lumen_active_workspace_id', currentWs.id);
+      } else {
+        setActiveWorkspaceState(null);
+        localStorage.removeItem('lumen_active_workspace_id');
       }
     } catch (error) {
       console.error('Error fetching workspaces:', error);
@@ -88,11 +94,14 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setProjects([]);
       setActiveProjectState(null);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, currentOrganization?.id]);
 
   useEffect(() => {
     if (activeWorkspace) {
       fetchProjects();
+    } else {
+      setProjects([]);
+      setActiveProjectState(null);
     }
   }, [activeWorkspace?.id]);
 
@@ -108,6 +117,17 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } else {
       localStorage.removeItem('lumen_active_project_id');
     }
+  };
+
+  const createWorkspace = async (name: string, description?: string): Promise<Workspace> => {
+    const ws = await workspaceApi.createWorkspace({
+      name,
+      description,
+      organization_id: currentOrganization?.id,
+    });
+    setWorkspaces((prev) => [ws, ...prev]);
+    setActiveWorkspace(ws);
+    return ws;
   };
 
   const refreshWorkspaces = async () => {
@@ -128,6 +148,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         isLoading,
         setActiveWorkspace,
         setActiveProject,
+        createWorkspace,
         refreshWorkspaces,
         refreshProjects,
       }}

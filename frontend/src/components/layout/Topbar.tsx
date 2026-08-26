@@ -10,10 +10,15 @@ import {
   SunMedium,
   User as UserIcon,
   Briefcase,
+  Settings,
+  Globe,
+  Layers,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkspace } from '../../context/WorkspaceContext';
+import { useOrganization } from '../../context/OrganizationContext';
 import { ProfileModal } from '../common/ProfileModal';
+import { OrganizationSettingsModal } from '../organization/OrganizationSettingsModal';
 
 interface TopbarProps {
   onCreateWorkspace: () => void;
@@ -21,18 +26,25 @@ interface TopbarProps {
 
 export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
   const { user, logout } = useAuth();
+  const { organizations, currentOrganization, currentUserOrgRole, selectOrganization } = useOrganization();
   const { workspaces, activeWorkspace, setActiveWorkspace } = useWorkspace();
   const navigate = useNavigate();
 
+  const [isOrgMenuOpen, setIsOrgMenuOpen] = useState(false);
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isOrgSettingsModalOpen, setIsOrgSettingsModalOpen] = useState(false);
 
+  const orgMenuRef = useRef<HTMLDivElement>(null);
   const wsMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      if (orgMenuRef.current && !orgMenuRef.current.contains(e.target as Node)) {
+        setIsOrgMenuOpen(false);
+      }
       if (wsMenuRef.current && !wsMenuRef.current.contains(e.target as Node)) {
         setIsWorkspaceMenuOpen(false);
       }
@@ -44,7 +56,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const userRole = activeWorkspace?.current_user_role || (user?.is_superuser ? 'SUPERUSER' : 'MEMBER');
+  const workspaceRole = activeWorkspace?.current_user_role || (user?.is_superuser ? 'OWNER' : 'MEMBER');
 
   return (
     <>
@@ -62,8 +74,8 @@ export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
           zIndex: 50,
         }}
       >
-        {/* Left: Brand Logo & Workspace Switcher */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+        {/* Left: Brand Logo & Organization / Workspace Switchers */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
           <NavLink
             to="/projects"
             style={{
@@ -117,7 +129,175 @@ export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
 
           <div style={{ height: '24px', width: '1px', backgroundColor: 'var(--border-subtle)' }} />
 
-          {/* Workspace Switcher */}
+          {/* 1. Organization Switcher */}
+          <div style={{ position: 'relative' }} ref={orgMenuRef}>
+            <button
+              onClick={() => setIsOrgMenuOpen(!isOrgMenuOpen)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '6px 12px',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-strong)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--text-primary)',
+                fontSize: '0.8125rem',
+                fontWeight: 500,
+                transition: 'all var(--transition-fast)',
+                cursor: 'pointer',
+              }}
+            >
+              <Globe size={15} color="var(--accent-cyan)" />
+              <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {currentOrganization ? currentOrganization.name : 'Select Org'}
+              </span>
+              {currentUserOrgRole && (
+                <span
+                  style={{
+                    fontSize: '0.625rem',
+                    fontWeight: 700,
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                    color: '#818cf8',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    letterSpacing: '0.03em',
+                  }}
+                >
+                  {currentUserOrgRole}
+                </span>
+              )}
+              <ChevronDown size={14} color="var(--text-muted)" />
+            </button>
+
+            {isOrgMenuOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  left: 0,
+                  width: '260px',
+                  backgroundColor: 'var(--bg-card)',
+                  border: '1px solid var(--border-strong)',
+                  borderRadius: 'var(--radius-lg)',
+                  boxShadow: 'var(--shadow-lg)',
+                  padding: '6px',
+                  zIndex: 100,
+                  animation: 'fadeIn 0.15s ease-out',
+                }}
+              >
+                <div
+                  style={{
+                    padding: '6px 10px',
+                    fontSize: '0.6875rem',
+                    fontWeight: 600,
+                    color: 'var(--text-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  Organizations ({organizations.length})
+                </div>
+
+                <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                  {organizations.map((org) => (
+                    <button
+                      key={org.id}
+                      onClick={() => {
+                        selectOrganization(org.id);
+                        setIsOrgMenuOpen(false);
+                        navigate('/projects');
+                      }}
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '8px 10px',
+                        borderRadius: 'var(--radius-sm)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        backgroundColor: currentOrganization?.id === org.id ? 'var(--bg-subtle)' : 'transparent',
+                        color: currentOrganization?.id === org.id ? '#ffffff' : 'var(--text-secondary)',
+                        fontSize: '0.8125rem',
+                        fontWeight: currentOrganization?.id === org.id ? 600 : 400,
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                        <Building2 size={14} color="var(--accent-cyan)" />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {org.name}
+                        </span>
+                      </div>
+                      {org.current_user_role && (
+                        <span style={{ fontSize: '0.625rem', color: 'var(--text-muted)' }}>
+                          {org.current_user_role}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ height: '1px', backgroundColor: 'var(--border-subtle)', margin: '6px 0' }} />
+
+                {currentOrganization && (
+                  <button
+                    onClick={() => {
+                      setIsOrgMenuOpen(false);
+                      setIsOrgSettingsModalOpen(true);
+                    }}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '8px 10px',
+                      borderRadius: 'var(--radius-sm)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.8125rem',
+                      fontWeight: 500,
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <Settings size={14} color="var(--accent-cyan)" />
+                    <span>Organization Settings</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => {
+                    setIsOrgMenuOpen(false);
+                    navigate('/onboarding');
+                  }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: 'var(--primary)',
+                    fontSize: '0.8125rem',
+                    fontWeight: 500,
+                    border: 'none',
+                    backgroundColor: 'transparent',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Plus size={14} />
+                  <span>Create / Join Org</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 2. Workspace Switcher */}
           <div style={{ position: 'relative' }} ref={wsMenuRef}>
             <button
               onClick={() => setIsWorkspaceMenuOpen(!isWorkspaceMenuOpen)}
@@ -130,14 +310,16 @@ export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
                 border: '1px solid var(--border-strong)',
                 borderRadius: 'var(--radius-md)',
                 color: 'var(--text-primary)',
-                fontSize: '0.875rem',
+                fontSize: '0.8125rem',
                 fontWeight: 500,
                 transition: 'all var(--transition-fast)',
                 cursor: 'pointer',
               }}
             >
-              <Building2 size={16} color="var(--primary)" />
-              <span>{activeWorkspace ? activeWorkspace.name : 'Select Workspace'}</span>
+              <Layers size={15} color="var(--primary)" />
+              <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {activeWorkspace ? activeWorkspace.name : 'Select Workspace'}
+              </span>
               <ChevronDown size={14} color="var(--text-muted)" />
             </button>
 
@@ -189,7 +371,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
                         justifyContent: 'space-between',
                         backgroundColor: activeWorkspace?.id === ws.id ? 'var(--bg-subtle)' : 'transparent',
                         color: activeWorkspace?.id === ws.id ? '#ffffff' : 'var(--text-secondary)',
-                        fontSize: '0.875rem',
+                        fontSize: '0.8125rem',
                         fontWeight: activeWorkspace?.id === ws.id ? 600 : 400,
                         border: 'none',
                         cursor: 'pointer',
@@ -333,7 +515,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
                   position: 'absolute',
                   top: 'calc(100% + 6px)',
                   right: 0,
-                  width: '260px',
+                  width: '270px',
                   backgroundColor: 'var(--bg-card)',
                   border: '1px solid var(--border-strong)',
                   borderRadius: 'var(--radius-lg)',
@@ -356,7 +538,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
                   {/* Professional Title Display */}
                   <div
                     style={{
-                      padding: '6px 10px',
+                      padding: '4px 10px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
@@ -368,10 +550,10 @@ export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
                     <span>Title: <strong style={{ color: 'var(--text-primary)' }}>{user?.professional_title || 'None'}</strong></span>
                   </div>
 
-                  {/* Workspace Security Role Badge */}
+                  {/* Organization Role Badge */}
                   <div
                     style={{
-                      padding: '6px 10px',
+                      padding: '4px 10px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
@@ -379,8 +561,23 @@ export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
                       color: 'var(--text-secondary)',
                     }}
                   >
-                    <Shield size={14} color="var(--accent-cyan)" />
-                    <span>Role: <strong style={{ color: 'var(--accent-cyan)' }}>{userRole}</strong></span>
+                    <Globe size={14} color="var(--accent-cyan)" />
+                    <span>Org Role: <strong style={{ color: 'var(--accent-cyan)' }}>{currentUserOrgRole || 'MEMBER'}</strong></span>
+                  </div>
+
+                  {/* Workspace Role Badge */}
+                  <div
+                    style={{
+                      padding: '4px 10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontSize: '0.8125rem',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    <Shield size={14} color="#a855f7" />
+                    <span>Workspace: <strong style={{ color: '#a855f7' }}>{workspaceRole}</strong></span>
                   </div>
                 </div>
 
@@ -443,6 +640,9 @@ export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
 
       {/* Profile Edit Modal */}
       <ProfileModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} />
+
+      {/* Organization Settings Modal */}
+      <OrganizationSettingsModal isOpen={isOrgSettingsModalOpen} onClose={() => setIsOrgSettingsModalOpen(false)} />
     </>
   );
 };

@@ -20,13 +20,16 @@ from app.schemas.user import UserResponse
 class WorkspaceService:
     @staticmethod
     def create_workspace(db: Session, obj_in: WorkspaceCreate, current_user: User) -> WorkspaceResponse:
-        workspace = workspace_repo.create_workspace_with_owner(db, obj_in, current_user.id)
+        workspace = workspace_repo.create_workspace_with_owner(
+            db, obj_in, current_user.id, organization_id=obj_in.organization_id
+        )
         return WorkspaceResponse(
             id=workspace.id,
             name=workspace.name,
             slug=workspace.slug,
             description=workspace.description,
             owner_id=workspace.owner_id,
+            organization_id=workspace.organization_id,
             created_at=workspace.created_at,
             updated_at=workspace.updated_at,
             owner=UserResponse.model_validate(current_user),
@@ -36,8 +39,10 @@ class WorkspaceService:
         )
 
     @staticmethod
-    def get_user_workspaces(db: Session, current_user: User) -> List[WorkspaceResponse]:
-        workspaces = workspace_repo.get_user_workspaces(db, current_user.id)
+    def get_user_workspaces(
+        db: Session, current_user: User, organization_id: Optional[str] = None
+    ) -> List[WorkspaceResponse]:
+        workspaces = workspace_repo.get_user_workspaces(db, current_user.id, organization_id=organization_id)
         result = []
         for ws in workspaces:
             membership = workspace_repo.get_membership(db, ws.id, current_user.id)
@@ -49,6 +54,7 @@ class WorkspaceService:
                     slug=ws.slug,
                     description=ws.description,
                     owner_id=ws.owner_id,
+                    organization_id=ws.organization_id,
                     created_at=ws.created_at,
                     updated_at=ws.updated_at,
                     owner=UserResponse.model_validate(ws.owner) if ws.owner else None,

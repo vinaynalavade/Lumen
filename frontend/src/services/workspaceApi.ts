@@ -2,15 +2,21 @@ import { ApiClient } from './api';
 import type { Workspace, WorkspaceMember } from '../types';
 
 export const workspaceApi = {
-  getWorkspaces: async (): Promise<Workspace[]> => {
-    return ApiClient.get<Workspace[]>('/workspaces');
+  getWorkspaces: async (organizationId?: string): Promise<Workspace[]> => {
+    const query = organizationId ? `?organization_id=${encodeURIComponent(organizationId)}` : '';
+    return ApiClient.get<Workspace[]>(`/workspaces${query}`);
   },
 
   getWorkspace: async (id: string): Promise<Workspace> => {
     return ApiClient.get<Workspace>(`/workspaces/${id}`);
   },
 
-  createWorkspace: async (data: { name: string; description?: string; slug?: string }): Promise<Workspace> => {
+  createWorkspace: async (data: {
+    name: string;
+    description?: string;
+    slug?: string;
+    organization_id?: string;
+  }): Promise<Workspace> => {
     return ApiClient.post<Workspace>('/workspaces', data);
   },
 

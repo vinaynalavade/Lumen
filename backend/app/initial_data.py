@@ -1,7 +1,14 @@
 import logging
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal, engine, Base
 from app.models.user import User
+from app.models.organization import (
+    Organization,
+    OrganizationMember,
+    OrganizationRole,
+    OrganizationJoinCode,
+)
 from app.models.workspace import Workspace
 from app.models.workspace_member import WorkspaceMember, WorkspaceRole
 from app.models.project import Project, ProjectStatus
@@ -9,6 +16,7 @@ from app.models.manual_testing import (
     TestModule,
     TestCase,
     TestCaseStep,
+    TestCaseReview,
     TestSuite,
     TestSuiteTestCase,
     TestRun,
@@ -17,7 +25,9 @@ from app.models.manual_testing import (
     TestCaseTemplate,
     TestCaseType,
     TestCasePriority,
+    TestCaseSeverity,
     TestCaseStatus,
+    TestCaseReviewStatus,
     TestRunStatus,
     ExecutionStatus,
 )
@@ -30,7 +40,7 @@ logger = logging.getLogger(__name__)
 def init_db(db: Session) -> None:
     Base.metadata.create_all(bind=engine)
 
-    # Check if demo user exists
+    # 1. Demo user
     user = db.query(User).filter(User.email == "demo@lumen.qa").first()
     if not user:
         logger.info("Creating demo user: demo@lumen.qa / password123")
@@ -40,13 +50,46 @@ def init_db(db: Session) -> None:
             professional_title="QA Lead",
             hashed_password=get_password_hash("password123"),
             is_active=True,
-            is_superuser=True
+            is_superuser=True,
         )
         db.add(user)
         db.commit()
         db.refresh(user)
 
-    # Check if workspace exists
+    # 2. Demo Organization
+    org = db.query(Organization).filter(Organization.slug == "acme-global").first()
+    if not org:
+        logger.info("Creating demo organization: Acme Global Quality")
+        org = Organization(
+            name="Acme Global Quality",
+            slug="acme-global",
+            description="Enterprise organization for quality assurance and continuous testing.",
+            owner_id=user.id,
+        )
+        db.add(org)
+        db.flush()
+
+        org_member = OrganizationMember(
+            organization_id=org.id,
+            user_id=user.id,
+            role=OrganizationRole.OWNER,
+            joined_at=datetime.now(timezone.utc),
+        )
+        db.add(org_member)
+
+        # Demo join code
+        join_code = OrganizationJoinCode(
+            organization_id=org.id,
+            code="LUMEN-DEMO-2026",
+            role=OrganizationRole.MEMBER,
+            created_by_id=user.id,
+            is_active=True,
+        )
+        db.add(join_code)
+        db.commit()
+        db.refresh(org)
+
+    # 3. Demo Workspace
     workspace = db.query(Workspace).filter(Workspace.slug == "core-engineering").first()
     if not workspace:
         logger.info("Creating demo workspace: Core Engineering")
@@ -54,7 +97,8 @@ def init_db(db: Session) -> None:
             name="Core Engineering",
             slug="core-engineering",
             description="Primary testing and QA engineering workspace for Lumen platform.",
-            owner_id=user.id
+            owner_id=user.id,
+            organization_id=org.id,
         )
         db.add(workspace)
         db.flush()
@@ -62,13 +106,17 @@ def init_db(db: Session) -> None:
         member = WorkspaceMember(
             workspace_id=workspace.id,
             user_id=user.id,
-            role=WorkspaceRole.OWNER
+            role=WorkspaceRole.OWNER,
         )
         db.add(member)
         db.commit()
         db.refresh(workspace)
+    elif not workspace.organization_id:
+        workspace.organization_id = org.id
+        db.commit()
+        db.refresh(workspace)
 
-    # Check if demo project exists
+    # 4. Demo Project
     project = db.query(Project).filter(Project.workspace_id == workspace.id, Project.key == "ECOMM").first()
     if not project:
         logger.info("Creating demo project: E-Commerce Storefront (ECOMM)")
@@ -78,25 +126,25 @@ def init_db(db: Session) -> None:
             key="ECOMM",
             description="End-to-end quality validation suite for checkout funnel, cart APIs, inventory DB and Selenium UI suites.",
             status=ProjectStatus.ACTIVE,
-            created_by_id=user.id
+            created_by_id=user.id,
         )
         db.add(project)
         db.commit()
         db.refresh(project)
 
-    # Check if demo modules exist
+    # 5. Demo Modules & Test Cases
     auth_module = db.query(TestModule).filter(TestModule.project_id == project.id, TestModule.name == "Authentication").first()
     if not auth_module:
         logger.info("Creating demo test modules...")
         auth_module = TestModule(
             project_id=project.id,
             name="Authentication",
-            description="Login, registration, password recovery and OAuth workflows."
+            description="Login, registration, password recovery and OAuth workflows.",
         )
         checkout_module = TestModule(
             project_id=project.id,
             name="Checkout & Payments",
-            description="Cart checkout, payment gateway integration, and receipt generation."
+            description="Cart checkout, payment gateway integration, and receipt generation.",
         )
         db.add(auth_module)
         db.add(checkout_module)
@@ -104,7 +152,6 @@ def init_db(db: Session) -> None:
         db.refresh(auth_module)
         db.refresh(checkout_module)
 
-        # Create demo test cases
         logger.info("Creating demo test cases...")
         tc1 = TestCase(
             project_id=project.id,
@@ -116,13 +163,16 @@ def init_db(db: Session) -> None:
             template_type=TestCaseTemplate.STANDARD,
             test_type=TestCaseType.SMOKE,
             priority=TestCasePriority.HIGH,
+            severity=TestCaseSeverity.HIGH,
             status=TestCaseStatus.ACTIVE,
+            review_status=TestCaseReviewStatus.APPROVED,
+            reviewer_id=user.id,
             tags="Authentication, Login, Smoke",
             preconditions="User account exists and email is confirmed.",
             test_data="demo@lumen.qa / password123",
             expected_result="User is redirected to the dashboard with active session token.",
             created_by_id=user.id,
-            updated_by_id=user.id
+            updated_by_id=user.id,
         )
         db.add(tc1)
         db.flush()
@@ -135,6 +185,9 @@ def init_db(db: Session) -> None:
         for idx, (act, exp, tdata) in enumerate(steps1, 1):
             db.add(TestCaseStep(test_case_id=tc1.id, step_number=idx, action=act, expected_result=exp, test_data=tdata))
 
+        # Add initial review record
+        db.add(TestCaseReview(test_case_id=tc1.id, reviewer_id=user.id, status=TestCaseReviewStatus.APPROVED, comments="Initial smoke test case reviewed and approved."))
+
         tc2 = TestCase(
             project_id=project.id,
             module_id=checkout_module.id,
@@ -145,13 +198,16 @@ def init_db(db: Session) -> None:
             template_type=TestCaseTemplate.STANDARD,
             test_type=TestCaseType.FUNCTIONAL,
             priority=TestCasePriority.CRITICAL,
+            severity=TestCaseSeverity.CRITICAL,
             status=TestCaseStatus.ACTIVE,
+            review_status=TestCaseReviewStatus.APPROVED,
+            reviewer_id=user.id,
             tags="Checkout, Payment, Critical",
             preconditions="Items are present in shopping cart; checkout flow is initiated.",
             test_data="Visa 4111-2222-3333-4444, Exp 12/28, CVV 123",
             expected_result="Payment authorized with HTTP 200, inventory decremented in DB, and order receipt displayed.",
             created_by_id=user.id,
-            updated_by_id=user.id
+            updated_by_id=user.id,
         )
         db.add(tc2)
         db.flush()
@@ -164,6 +220,8 @@ def init_db(db: Session) -> None:
         for idx, (act, exp, tdata) in enumerate(steps2, 1):
             db.add(TestCaseStep(test_case_id=tc2.id, step_number=idx, action=act, expected_result=exp, test_data=tdata))
 
+        db.add(TestCaseReview(test_case_id=tc2.id, reviewer_id=user.id, status=TestCaseReviewStatus.APPROVED, comments="Payment checkout flow verified against payment gateway spec."))
+
         tc3 = TestCase(
             project_id=project.id,
             module_id=checkout_module.id,
@@ -174,21 +232,26 @@ def init_db(db: Session) -> None:
             template_type=TestCaseTemplate.SIMPLE,
             test_type=TestCaseType.NEGATIVE,
             priority=TestCasePriority.HIGH,
+            severity=TestCaseSeverity.HIGH,
             status=TestCaseStatus.ACTIVE,
+            review_status=TestCaseReviewStatus.APPROVED,
+            reviewer_id=user.id,
             tags="Inventory, Payment, Negative",
             expected_result="Inventory count unchanged in database when payment gateway returns decline code.",
             created_by_id=user.id,
-            updated_by_id=user.id
+            updated_by_id=user.id,
         )
         db.add(tc3)
         db.flush()
 
-        # Create demo test suite
+        db.add(TestCaseReview(test_case_id=tc3.id, reviewer_id=user.id, status=TestCaseReviewStatus.APPROVED, comments="Negative test scenario verified."))
+
+        # 6. Test Suite
         suite = TestSuite(
             project_id=project.id,
             name="Smoke & Critical Path Suite",
             description="High-priority sanity validations for auth and checkout services.",
-            created_by_id=user.id
+            created_by_id=user.id,
         )
         db.add(suite)
         db.flush()
@@ -198,15 +261,18 @@ def init_db(db: Session) -> None:
         db.add(TestSuiteTestCase(suite_id=suite.id, test_case_id=tc3.id, order_index=2))
         db.commit()
 
-        # Create sample test run
+        # 7. Test Run
         logger.info("Creating demo test run...")
+        now = datetime.now(timezone.utc)
         run = TestRun(
             project_id=project.id,
             suite_id=suite.id,
             name="Release 1.0.0 Staging Sanity Run",
             environment="Staging",
             status=TestRunStatus.IN_PROGRESS,
-            created_by_id=user.id
+            created_by_id=user.id,
+            started_by_id=user.id,
+            started_at=now,
         )
         db.add(run)
         db.flush()
@@ -223,12 +289,17 @@ def init_db(db: Session) -> None:
             test_data=tc1.test_data,
             expected_result=tc1.expected_result,
             priority=tc1.priority.value,
+            severity=tc1.severity.value,
             test_type=tc1.test_type.value,
             tags=tc1.tags,
             status=ExecutionStatus.PASSED,
             actual_result="Login succeeded and session established seamlessly.",
             duration_seconds=12,
-            executed_by_id=user.id
+            assigned_to_id=user.id,
+            executed_by_id=user.id,
+            execution_started_at=now,
+            execution_completed_at=now,
+            executed_at=now,
         )
         db.add(item1)
         db.flush()
@@ -246,9 +317,11 @@ def init_db(db: Session) -> None:
             test_data=tc2.test_data,
             expected_result=tc2.expected_result,
             priority=tc2.priority.value,
+            severity=tc2.severity.value,
             test_type=tc2.test_type.value,
             tags=tc2.tags,
-            status=ExecutionStatus.UNTESTED
+            assigned_to_id=user.id,
+            status=ExecutionStatus.UNTESTED,
         )
         db.add(item2)
         db.flush()
@@ -263,13 +336,15 @@ def init_db(db: Session) -> None:
             title=tc3.title,
             description=tc3.description,
             priority=tc3.priority.value,
+            severity=tc3.severity.value,
             test_type=tc3.test_type.value,
             tags=tc3.tags,
-            status=ExecutionStatus.UNTESTED
+            assigned_to_id=user.id,
+            status=ExecutionStatus.UNTESTED,
         )
         db.add(item3)
         db.commit()
-        logger.info("Demo manual testing suite initialized successfully!")
+        logger.info("Demo manual testing suite with organization & governance initialized successfully!")
 
 
 def main() -> None:

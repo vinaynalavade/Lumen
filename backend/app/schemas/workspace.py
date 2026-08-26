@@ -7,6 +7,7 @@ from app.schemas.user import UserResponse
 class WorkspaceBase(BaseModel):
     name: str
     description: str | None = None
+    organization_id: str | None = None
 
 
 class WorkspaceCreate(WorkspaceBase):
@@ -16,6 +17,7 @@ class WorkspaceCreate(WorkspaceBase):
 class WorkspaceUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
+    organization_id: str | None = None
 
 
 class WorkspaceMemberResponse(BaseModel):
@@ -42,6 +44,7 @@ class WorkspaceResponse(WorkspaceBase):
     id: str
     slug: str
     owner_id: str
+    organization_id: str | None = None
     created_at: datetime
     updated_at: datetime
     owner: UserResponse | None = None

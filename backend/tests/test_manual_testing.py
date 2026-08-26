@@ -45,7 +45,9 @@ def test_complete_manual_testing_flow_with_rich_structure(client: TestClient):
         "template_type": "STANDARD",
         "test_type": "SMOKE",
         "priority": "HIGH",
+        "severity": "CRITICAL",
         "status": "ACTIVE",
+        "review_status": "APPROVED",
         "tags": ["Auth", "Login", "Smoke", "Release-1.0"],
         "preconditions": "Active registered user account exists in authentication database",
         "test_data": "Global: validuser@lumen.qa / SecurePass123",
@@ -95,7 +97,9 @@ def test_complete_manual_testing_flow_with_rich_structure(client: TestClient):
             "template_type": "SIMPLE",
             "test_type": "NEGATIVE",
             "priority": "MEDIUM",
+            "severity": "MEDIUM",
             "status": "ACTIVE",
+            "review_status": "APPROVED",
             "tags": ["Auth", "PasswordReset", "Negative"],
             "preconditions": "Email service is running",
             "test_data": "nonexistent@nowhere.com",
@@ -277,7 +281,7 @@ def test_viewer_rbac_restrictions_on_manual_testing(client: TestClient):
 
     tc_id = client.post(
         f"/api/v1/projects/{proj_id}/test-cases",
-        json={"title": "Protected Test Case", "module_id": mod_id},
+        json={"title": "Protected Test Case", "module_id": mod_id, "review_status": "APPROVED"},
         headers=owner_headers
     ).json()["id"]
 

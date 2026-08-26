@@ -8,12 +8,15 @@ from app.models.workspace_member import WorkspaceRole
 from app.models.manual_testing import (
     TestModule,
     TestCase,
+    TestCaseReview,
     TestSuite,
     TestRun,
     TestRunItem,
     ExecutionEvidence,
     TestCaseStatus,
+    TestCaseReviewStatus,
     TestCasePriority,
+    TestCaseSeverity,
     TestRunStatus,
     ExecutionStatus,
 )
@@ -31,6 +34,11 @@ from app.schemas.manual_testing import (
     TestModuleResponse,
     TestCaseCreate,
     TestCaseUpdate,
+    TestCaseMoveModuleRequest,
+    TestCaseBulkMoveRequest,
+    TestCaseSubmitReviewRequest,
+    TestCaseReviewCreate,
+    TestCaseReviewResponse,
     TestCaseResponse,
     TestCaseDetailResponse,
     TestCaseStepResponse,
@@ -43,6 +51,7 @@ from app.schemas.manual_testing import (
     TestRunDetailResponse,
     TestRunItemResponse,
     TestRunItemStepResultResponse,
+    TestRunItemAssignRequest,
     ExecuteTestItemRequest,
     ExecutionEvidenceCreate,
     ExecutionEvidenceResponse,
@@ -171,8 +180,12 @@ class ManualTestingService:
         project_id: str,
         current_user: User,
         module_id: Optional[str] = None,
+        unassigned_only: bool = False,
         priority: Optional[TestCasePriority] = None,
+        severity: Optional[TestCaseSeverity] = None,
         status: Optional[TestCaseStatus] = None,
+        review_status: Optional[TestCaseReviewStatus] = None,
+        reviewer_id: Optional[str] = None,
         test_type: Optional[Any] = None,
         tag: Optional[str] = None,
         search: Optional[str] = None,
@@ -181,7 +194,20 @@ class ManualTestingService:
     ) -> List[TestCaseResponse]:
         cls.get_authorized_project(db, project_id, current_user, require_write=False)
         cases, _ = test_case_repo.get_project_cases(
-            db, project_id, module_id, priority, status, test_type, tag, search, skip, limit
+            db=db,
+            project_id=project_id,
+            module_id=module_id,
+            unassigned_only=unassigned_only,
+            priority=priority,
+            severity=severity,
+            status=status,
+            review_status=review_status,
+            reviewer_id=reviewer_id,
+            test_type=test_type,
+            tag=tag,
+            search=search,
+            skip=skip,
+            limit=limit,
         )
 
         result = []
@@ -202,7 +228,10 @@ class ManualTestingService:
                     template_type=c.template_type,
                     test_type=c.test_type,
                     priority=c.priority,
+                    severity=c.severity,
                     status=c.status,
+                    review_status=c.review_status,
+                    reviewer_id=c.reviewer_id,
                     tags=cls._parse_tags(c.tags),
                     preconditions=c.preconditions,
                     test_data=c.test_data,
@@ -213,6 +242,8 @@ class ManualTestingService:
                     created_at=c.created_at,
                     updated_at=c.updated_at,
                     creator=UserResponse.model_validate(c.creator) if c.creator else None,
+                    updater=UserResponse.model_validate(c.updater) if c.updater else None,
+                    reviewer=UserResponse.model_validate(c.reviewer) if c.reviewer else None,
                     module_name=c.module.name if c.module else None,
                     step_count=len(c.steps),
                     last_execution_status=latest_status,
@@ -251,6 +282,170 @@ class ManualTestingService:
         return cls._build_case_detail_response(updated_case)
 
     @classmethod
+    def move_test_case_module(
+        cls, db: Session, case_id: str, req: TestCaseMoveModuleRequest, current_user: User
+    ) -> TestCaseDetailResponse:
+        case = test_case_repo.get(db, case_id)
+        if not case:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test case not found.")
+        cls.get_authorized_project(db, case.project_id, current_user, require_write=True)
+
+        if req.target_module_id:
+            target_mod = test_module_repo.get(db, req.target_module_id)
+            if not target_mod or target_mod.project_id != case.project_id:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Target module does not belong to this project.")
+            case.module_id = req.target_module_id
+        else:
+            case.module_id = None
+
+        case.updated_by_id = current_user.id
+        db.commit()
+        db.refresh(case)
+        return cls._build_case_detail_response(case)
+
+    @classmethod
+    def bulk_move_test_cases(
+        cls, db: Session, project_id: str, req: TestCaseBulkMoveRequest, current_user: User
+    ) -> dict:
+        cls.get_authorized_project(db, project_id, current_user, require_write=True)
+        count = test_case_repo.bulk_move_cases(
+            db, project_id, req.test_case_ids, req.target_module_id, current_user.id
+        )
+        return {"message": f"Successfully moved {count} test cases.", "moved_count": count}
+
+    # -------------------------------------------------------------
+    # 2b. Test Case Review Governance Workflow
+    # -------------------------------------------------------------
+    @classmethod
+    def submit_for_review(
+        cls, db: Session, case_id: str, req: TestCaseSubmitReviewRequest, current_user: User
+    ) -> TestCaseDetailResponse:
+        case = test_case_repo.get(db, case_id)
+        if not case:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test case not found.")
+        cls.get_authorized_project(db, case.project_id, current_user, require_write=True)
+
+        case.review_status = TestCaseReviewStatus.IN_REVIEW
+        if req.reviewer_id:
+            case.reviewer_id = req.reviewer_id
+        case.updated_by_id = current_user.id
+        db.commit()
+
+        # Log review action
+        test_case_repo.create_review(
+            db,
+            test_case_id=case.id,
+            reviewer_id=current_user.id,
+            status=TestCaseReviewStatus.IN_REVIEW,
+            comments=req.comments or "Submitted for peer review.",
+        )
+
+        db.refresh(case)
+        return cls._build_case_detail_response(case)
+
+    @classmethod
+    def approve_test_case(
+        cls, db: Session, case_id: str, req: TestCaseReviewCreate, current_user: User
+    ) -> TestCaseDetailResponse:
+        case = test_case_repo.get(db, case_id)
+        if not case:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test case not found.")
+        cls.get_authorized_project(db, case.project_id, current_user, require_write=True)
+
+        case.review_status = TestCaseReviewStatus.APPROVED
+        case.status = TestCaseStatus.ACTIVE
+        case.reviewer_id = current_user.id
+        case.updated_by_id = current_user.id
+        db.commit()
+
+        # Log review approval
+        test_case_repo.create_review(
+            db,
+            test_case_id=case.id,
+            reviewer_id=current_user.id,
+            status=TestCaseReviewStatus.APPROVED,
+            comments=req.comments or "Test case approved and marked ready for execution.",
+        )
+
+        db.refresh(case)
+        return cls._build_case_detail_response(case)
+
+    @classmethod
+    def request_changes(
+        cls, db: Session, case_id: str, req: TestCaseReviewCreate, current_user: User
+    ) -> TestCaseDetailResponse:
+        case = test_case_repo.get(db, case_id)
+        if not case:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test case not found.")
+        cls.get_authorized_project(db, case.project_id, current_user, require_write=True)
+
+        case.review_status = TestCaseReviewStatus.CHANGES_REQUESTED
+        case.reviewer_id = current_user.id
+        case.updated_by_id = current_user.id
+        db.commit()
+
+        # Log changes requested
+        test_case_repo.create_review(
+            db,
+            test_case_id=case.id,
+            reviewer_id=current_user.id,
+            status=TestCaseReviewStatus.CHANGES_REQUESTED,
+            comments=req.comments or "Changes requested by reviewer.",
+        )
+
+        db.refresh(case)
+        return cls._build_case_detail_response(case)
+
+    @classmethod
+    def reject_test_case(
+        cls, db: Session, case_id: str, req: TestCaseReviewCreate, current_user: User
+    ) -> TestCaseDetailResponse:
+        case = test_case_repo.get(db, case_id)
+        if not case:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test case not found.")
+        cls.get_authorized_project(db, case.project_id, current_user, require_write=True)
+
+        case.review_status = TestCaseReviewStatus.REJECTED
+        case.reviewer_id = current_user.id
+        case.updated_by_id = current_user.id
+        db.commit()
+
+        # Log rejection action
+        test_case_repo.create_review(
+            db,
+            test_case_id=case.id,
+            reviewer_id=current_user.id,
+            status=TestCaseReviewStatus.REJECTED,
+            comments=req.comments or "Test case rejected by reviewer.",
+        )
+
+        db.refresh(case)
+        return cls._build_case_detail_response(case)
+
+    @classmethod
+    def get_test_case_reviews(
+        cls, db: Session, case_id: str, current_user: User
+    ) -> List[TestCaseReviewResponse]:
+        case = test_case_repo.get(db, case_id)
+        if not case:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test case not found.")
+        cls.get_authorized_project(db, case.project_id, current_user, require_write=False)
+
+        reviews = test_case_repo.get_reviews(db, case_id)
+        return [
+            TestCaseReviewResponse(
+                id=r.id,
+                test_case_id=r.test_case_id,
+                reviewer_id=r.reviewer_id,
+                status=r.status,
+                comments=r.comments,
+                created_at=r.created_at,
+                reviewer=UserResponse.model_validate(r.reviewer) if r.reviewer else None,
+            )
+            for r in reviews
+        ]
+
+    @classmethod
     def archive_test_case(cls, db: Session, case_id: str, current_user: User) -> TestCaseResponse:
         case = test_case_repo.get(db, case_id)
         if not case:
@@ -258,6 +453,7 @@ class ManualTestingService:
         cls.get_authorized_project(db, case.project_id, current_user, require_write=True)
 
         case.status = TestCaseStatus.ARCHIVED
+        case.review_status = TestCaseReviewStatus.DEPRECATED
         db.commit()
         db.refresh(case)
         return cls._build_case_detail_response(case)
@@ -389,18 +585,44 @@ class ManualTestingService:
             suite = test_suite_repo.get(db, obj_in.suite_id)
             if not suite:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test suite not found.")
-            target_cases = [m.test_case for m in suite.cases if m.test_case.status != TestCaseStatus.ARCHIVED]
+            target_cases = [
+                m.test_case
+                for m in suite.cases
+                if m.test_case.status != TestCaseStatus.ARCHIVED
+                and m.test_case.review_status == TestCaseReviewStatus.APPROVED
+            ]
+            if not target_cases:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot create a test run: None of the test cases in this suite are approved for execution.",
+                )
         elif obj_in.test_case_ids:
             target_cases = (
                 db.query(TestCase)
                 .filter(TestCase.id.in_(obj_in.test_case_ids), TestCase.project_id == project_id)
                 .all()
             )
+            if not target_cases:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot create a test run without valid test cases.",
+                )
+            for tc in target_cases:
+                if tc.status == TestCaseStatus.ARCHIVED:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Test case '{tc.key}' cannot be executed because it is archived.",
+                    )
+                if tc.review_status != TestCaseReviewStatus.APPROVED:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Test case '{tc.key}' cannot be executed because its review status is '{tc.review_status.value}'. Only APPROVED test cases can be executed.",
+                    )
 
         if not target_cases:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot create a test run without at least one active test case.",
+                detail="Cannot create a test run without at least one approved test case.",
             )
 
         run = test_run_repo.create_run_with_snapshots(
@@ -417,6 +639,22 @@ class ManualTestingService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test run not found.")
         cls.get_authorized_project(db, run.project_id, current_user, require_write=False)
         return cls._build_run_detail_response(run)
+
+    @classmethod
+    def assign_test_run_item(
+        cls, db: Session, run_id: str, item_id: str, req: TestRunItemAssignRequest, current_user: User
+    ) -> TestRunItemResponse:
+        run = test_run_repo.get(db, run_id)
+        if not run:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test run not found.")
+        cls.get_authorized_project(db, run.project_id, current_user, require_write=True)
+
+        item = db.query(TestRunItem).filter(TestRunItem.id == item_id, TestRunItem.test_run_id == run_id).first()
+        if not item:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test run item not found.")
+
+        updated_item = test_run_repo.assign_item(db, item, req.assigned_to_id, current_user.id)
+        return cls._build_run_item_response(updated_item)
 
     @classmethod
     def execute_test_run_item(
@@ -477,6 +715,18 @@ class ManualTestingService:
             )
             for s in case.steps
         ]
+        reviews_resp = [
+            TestCaseReviewResponse(
+                id=r.id,
+                test_case_id=r.test_case_id,
+                reviewer_id=r.reviewer_id,
+                status=r.status,
+                comments=r.comments,
+                created_at=r.created_at,
+                reviewer=UserResponse.model_validate(r.reviewer) if r.reviewer else None,
+            )
+            for r in (case.review_history or [])
+        ]
         return TestCaseDetailResponse(
             id=case.id,
             project_id=case.project_id,
@@ -488,7 +738,10 @@ class ManualTestingService:
             template_type=case.template_type,
             test_type=case.test_type,
             priority=case.priority,
+            severity=case.severity,
             status=case.status,
+            review_status=case.review_status,
+            reviewer_id=case.reviewer_id,
             tags=cls._parse_tags(case.tags),
             preconditions=case.preconditions,
             test_data=case.test_data,
@@ -499,9 +752,12 @@ class ManualTestingService:
             created_at=case.created_at,
             updated_at=case.updated_at,
             creator=UserResponse.model_validate(case.creator) if case.creator else None,
+            updater=UserResponse.model_validate(case.updater) if case.updater else None,
+            reviewer=UserResponse.model_validate(case.reviewer) if case.reviewer else None,
             module_name=case.module.name if case.module else None,
             step_count=len(case.steps),
             steps=steps_resp,
+            review_history=reviews_resp,
         )
 
     @classmethod
@@ -518,7 +774,10 @@ class ManualTestingService:
                 template_type=m.test_case.template_type,
                 test_type=m.test_case.test_type,
                 priority=m.test_case.priority,
+                severity=m.test_case.severity,
                 status=m.test_case.status,
+                review_status=m.test_case.review_status,
+                reviewer_id=m.test_case.reviewer_id,
                 tags=cls._parse_tags(m.test_case.tags),
                 preconditions=m.test_case.preconditions,
                 test_data=m.test_case.test_data,
@@ -529,6 +788,8 @@ class ManualTestingService:
                 created_at=m.test_case.created_at,
                 updated_at=m.test_case.updated_at,
                 creator=UserResponse.model_validate(m.test_case.creator) if m.test_case.creator else None,
+                updater=UserResponse.model_validate(m.test_case.updater) if m.test_case.updater else None,
+                reviewer=UserResponse.model_validate(m.test_case.reviewer) if m.test_case.reviewer else None,
                 module_name=m.test_case.module.name if m.test_case.module else None,
                 step_count=len(m.test_case.steps),
             )
@@ -567,11 +828,15 @@ class ManualTestingService:
             environment=run.environment,
             status=run.status,
             created_by_id=run.created_by_id,
+            started_by_id=run.started_by_id,
+            updated_by_id=run.updated_by_id,
             started_at=run.started_at,
             completed_at=run.completed_at,
             created_at=run.created_at,
             updated_at=run.updated_at,
             creator=UserResponse.model_validate(run.creator) if run.creator else None,
+            started_by=UserResponse.model_validate(run.started_by) if run.started_by else None,
+            updater=UserResponse.model_validate(run.updater) if run.updater else None,
             suite_name=run.suite.name if run.suite else None,
             total_items=total,
             passed_count=passed,
@@ -629,15 +894,22 @@ class ManualTestingService:
             test_data=item.test_data,
             expected_result=item.expected_result,
             priority=item.priority,
+            severity=item.severity,
             test_type=item.test_type,
             tags=cls._parse_tags(item.tags),
             status=item.status,
             actual_result=item.actual_result,
             notes=item.notes,
+            assigned_to_id=item.assigned_to_id,
             executed_by_id=item.executed_by_id,
+            updated_by_id=item.updated_by_id,
+            execution_started_at=item.execution_started_at,
+            execution_completed_at=item.execution_completed_at,
             executed_at=item.executed_at,
             duration_seconds=item.duration_seconds,
+            assigned_to=UserResponse.model_validate(item.assigned_to) if item.assigned_to else None,
             executor=UserResponse.model_validate(item.executor) if item.executor else None,
+            updater=UserResponse.model_validate(item.updater) if item.updater else None,
             step_results=step_res_resp,
             evidences=evidences_resp,
         )

@@ -7,86 +7,89 @@ import {
   Trash2,
   History,
   ListOrdered,
-  Folder,
-  Plus,
-  ArrowUp,
-  ArrowDown,
+  Send,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  ShieldCheck,
+  FolderInput,
+  XCircle,
 } from 'lucide-react';
 import { manualTestingApi } from '../../services/manualTestingApi';
+import { workspaceApi } from '../../services/workspaceApi';
+import { useWorkspace } from '../../context/WorkspaceContext';
 import type {
   TestCase,
   TestCaseHistoryEntry,
+  TestCaseReview,
   TestCasePriority,
-  TestCaseStatus,
+  TestCaseSeverity,
+  TestCaseReviewStatus,
   TestCaseType,
   TestCaseStep,
+  TestModule,
+  WorkspaceMember,
 } from '../../types';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { Modal } from '../../components/common/Modal';
-import { Input } from '../../components/common/Input';
-
-const TEST_TYPES: TestCaseType[] = [
-  'FUNCTIONAL',
-  'SMOKE',
-  'SANITY',
-  'REGRESSION',
-  'INTEGRATION',
-  'UI',
-  'API',
-  'NEGATIVE',
-  'EDGE_CASE',
-];
+import { TestCaseEditorModal } from '../../components/manual-testing/TestCaseEditorModal';
 
 export const TestCaseDetailPage: React.FC = () => {
   const { projectId, caseId } = useParams<{ projectId: string; caseId: string }>();
   const navigate = useNavigate();
+  const { activeWorkspace } = useWorkspace();
 
   const [testCase, setTestCase] = useState<TestCase | null>(null);
   const [history, setHistory] = useState<TestCaseHistoryEntry[]>([]);
+  const [reviews, setReviews] = useState<TestCaseReview[]>([]);
+  const [modules, setModules] = useState<TestModule[]>([]);
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Edit Modal State
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editTitle, setEditTitle] = useState('');
-  const [editDesc, setEditDesc] = useState('');
-  const [editType, setEditType] = useState<TestCaseType>('FUNCTIONAL');
-  const [editPriority, setEditPriority] = useState<TestCasePriority>('MEDIUM');
-  const [editStatus, setEditStatus] = useState<TestCaseStatus>('ACTIVE');
-  const [editTags, setEditTags] = useState<string[]>([]);
-  const [editTagInput, setEditTagInput] = useState('');
-  const [editPreconditions, setEditPreconditions] = useState('');
-  const [editTestData, setEditTestData] = useState('');
-  const [editDuration, setEditDuration] = useState('5');
-  const [editExpectedResult, setEditExpectedResult] = useState('');
-  const [editSteps, setEditSteps] = useState<TestCaseStep[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
-  const [editError, setEditError] = useState('');
+  // Editor Modal
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+
+  // Review Action Modals
+  const [isSubmitReviewModalOpen, setIsSubmitReviewModalOpen] = useState(false);
+  const [submitReviewerId, setSubmitReviewerId] = useState<string>('');
+  const [submitComments, setSubmitComments] = useState('');
+
+  const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
+  const [approveComments, setApproveComments] = useState('');
+
+  const [isChangesModalOpen, setIsChangesModalOpen] = useState(false);
+  const [changesComments, setChangesComments] = useState('');
+
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [rejectComments, setRejectComments] = useState('');
+
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
+
+  // Move Module State
+  const [selectedTargetModule, setSelectedTargetModule] = useState<string>('');
 
   const loadData = async () => {
-    if (!caseId) return;
+    if (!caseId || !projectId) return;
     setIsLoading(true);
     try {
-      const [caseData, histData] = await Promise.all([
+      const [caseData, histData, reviewData, modList] = await Promise.all([
         manualTestingApi.getTestCaseDetail(caseId),
         manualTestingApi.getTestCaseHistory(caseId),
+        manualTestingApi.getTestCaseReviews(caseId),
+        manualTestingApi.getModules(projectId),
       ]);
       setTestCase(caseData);
       setHistory(histData);
+      setReviews(reviewData);
+      setModules(modList);
+      setSelectedTargetModule(caseData.module_id || '');
+      setSubmitReviewerId(caseData.reviewer_id || '');
 
-      // Populate edit fields
-      setEditTitle(caseData.title);
-      setEditDesc(caseData.description || '');
-      setEditType(caseData.test_type || 'FUNCTIONAL');
-      setEditPriority(caseData.priority);
-      setEditStatus(caseData.status);
-      setEditTags(caseData.tags || []);
-      setEditPreconditions(caseData.preconditions || '');
-      setEditTestData(caseData.test_data || '');
-      setEditDuration(caseData.estimated_duration_minutes ? String(caseData.estimated_duration_minutes) : '5');
-      setEditExpectedResult(caseData.expected_result || '');
-      setEditSteps(caseData.steps || []);
+      if (activeWorkspace) {
+        workspaceApi.getWorkspaceMembers(activeWorkspace.id).then(setMembers).catch(console.error);
+      }
     } catch (err) {
       console.error('Failed to load test case details:', err);
     } finally {
@@ -96,84 +99,99 @@ export const TestCaseDetailPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [caseId]);
+  }, [caseId, projectId, activeWorkspace?.id]);
 
-  const handleAddEditTag = () => {
-    const trimmed = editTagInput.trim();
-    if (trimmed && !editTags.includes(trimmed)) {
-      setEditTags([...editTags, trimmed]);
-      setEditTagInput('');
+  const handleSaveEdit = async (caseData: Partial<TestCase> & { steps?: TestCaseStep[] }, submitForReview = false, reviewerId?: string | null) => {
+    if (!caseId) return;
+    await manualTestingApi.updateTestCase(caseId, caseData);
+    if (submitForReview) {
+      await manualTestingApi.submitForReview(caseId, { reviewer_id: reviewerId });
     }
+    loadData();
   };
 
-  const handleRemoveEditTag = (t: string) => {
-    setEditTags(editTags.filter((tag) => tag !== t));
-  };
-
-  const handleAddEditStep = () => {
-    setEditSteps([
-      ...editSteps,
-      { step_number: editSteps.length + 1, action: '', expected_result: '', test_data: '' },
-    ]);
-  };
-
-  const handleRemoveEditStep = (index: number) => {
-    const updated = editSteps.filter((_, idx) => idx !== index);
-    setEditSteps(updated.map((s, idx) => ({ ...s, step_number: idx + 1 })));
-  };
-
-  const handleMoveEditStep = (index: number, direction: 'up' | 'down') => {
-    if (direction === 'up' && index === 0) return;
-    if (direction === 'down' && index === editSteps.length - 1) return;
-
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    const updated = [...editSteps];
-    const temp = updated[index];
-    updated[index] = updated[targetIndex];
-    updated[targetIndex] = temp;
-
-    setEditSteps(updated.map((s, idx) => ({ ...s, step_number: idx + 1 })));
-  };
-
-  const handleEditStepChange = (index: number, field: keyof TestCaseStep, val: string) => {
-    const updated = [...editSteps];
-    updated[index] = { ...updated[index], [field]: val };
-    setEditSteps(updated);
-  };
-
-  const handleSaveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!caseId || !editTitle.trim()) {
-      setEditError('Title is required.');
-      return;
-    }
-    setIsSaving(true);
-    setEditError('');
+  const handleMoveModule = async (newModuleId: string) => {
+    if (!caseId) return;
+    const targetId = newModuleId === '' ? null : newModuleId;
     try {
-      const updated = await manualTestingApi.updateTestCase(caseId, {
-        title: editTitle.trim(),
-        description: editDesc.trim() || undefined,
-        test_type: editType,
-        priority: editPriority,
-        status: editStatus,
-        tags: editTags,
-        preconditions: editPreconditions.trim() || undefined,
-        test_data: editTestData.trim() || undefined,
-        estimated_duration_minutes: editDuration ? parseInt(editDuration, 10) : undefined,
-        expected_result: editExpectedResult.trim() || undefined,
-        steps: editSteps.map((s, idx) => ({
-          step_number: idx + 1,
-          action: s.action.trim(),
-          expected_result: s.expected_result.trim(),
-          test_data: s.test_data?.trim() || undefined,
-        })),
-      });
+      const updated = await manualTestingApi.moveTestCaseModule(caseId, targetId);
       setTestCase(updated);
-      setIsEditModalOpen(false);
-    } catch (err: any) {
-      setEditError(err?.response?.data?.detail || err?.message || 'Failed to update test case.');
+      setSelectedTargetModule(newModuleId);
+    } catch (err) {
+      console.error('Failed to move test case module:', err);
+    }
+  };
+
+  const handleSubmitForReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!caseId) return;
+    setIsSubmittingAction(true);
+    try {
+      await manualTestingApi.submitForReview(caseId, {
+        reviewer_id: submitReviewerId || null,
+        comments: submitComments.trim() || undefined,
+      });
+      setIsSubmitReviewModalOpen(false);
+      setSubmitComments('');
+      loadData();
+    } catch (err) {
+      console.error('Failed to submit for review:', err);
     } finally {
-      setIsSaving(false);
+      setIsSubmittingAction(false);
+    }
+  };
+
+  const handleApproveTestCase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!caseId) return;
+    setIsSubmittingAction(true);
+    try {
+      await manualTestingApi.approveTestCase(caseId, {
+        comments: approveComments.trim() || undefined,
+      });
+      setIsApproveModalOpen(false);
+      setApproveComments('');
+      loadData();
+    } catch (err) {
+      console.error('Failed to approve test case:', err);
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
+
+  const handleRequestChanges = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!caseId) return;
+    setIsSubmittingAction(true);
+    try {
+      await manualTestingApi.requestChanges(caseId, {
+        comments: changesComments.trim() || undefined,
+      });
+      setIsChangesModalOpen(false);
+      setChangesComments('');
+      loadData();
+    } catch (err) {
+      console.error('Failed to request changes:', err);
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
+
+  const handleRejectTestCase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!caseId) return;
+    setIsSubmittingAction(true);
+    try {
+      await manualTestingApi.rejectTestCase(caseId, {
+        comments: rejectComments.trim() || undefined,
+      });
+      setIsRejectModalOpen(false);
+      setRejectComments('');
+      loadData();
+    } catch (err) {
+      console.error('Failed to reject test case:', err);
+    } finally {
+      setIsSubmittingAction(false);
     }
   };
 
@@ -200,7 +218,7 @@ export const TestCaseDetailPage: React.FC = () => {
   if (isLoading || !testCase) {
     return (
       <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>
-        Loading test case details...
+        Loading test case governance specification...
       </div>
     );
   }
@@ -217,6 +235,78 @@ export const TestCaseDetailPage: React.FC = () => {
         return 'neutral';
       default:
         return 'neutral';
+    }
+  };
+
+  const getSeverityBadge = (severity?: TestCaseSeverity | string) => {
+    switch (severity) {
+      case 'CRITICAL':
+        return (
+          <span className="text-xs font-bold px-3 py-1 rounded-md bg-rose-500/15 text-rose-400 border border-rose-500/30">
+            💥 CRITICAL IMPACT
+          </span>
+        );
+      case 'HIGH':
+        return (
+          <span className="text-xs font-bold px-3 py-1 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30">
+            🔥 HIGH IMPACT
+          </span>
+        );
+      case 'MEDIUM':
+        return (
+          <span className="text-xs font-semibold px-3 py-1 rounded-md bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+            ⚡ MEDIUM IMPACT
+          </span>
+        );
+      case 'LOW':
+        return (
+          <span className="text-xs font-semibold px-3 py-1 rounded-md bg-slate-800 text-slate-400 border border-slate-700">
+            🌱 LOW IMPACT
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const getReviewStatusBadge = (reviewStatus?: TestCaseReviewStatus | string) => {
+    switch (reviewStatus) {
+      case 'APPROVED':
+        return (
+          <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            APPROVED (Ready for Run)
+          </span>
+        );
+      case 'IN_REVIEW':
+        return (
+          <span className="text-xs font-bold px-3 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5" />
+            PEER REVIEW IN PROGRESS
+          </span>
+        );
+      case 'CHANGES_REQUESTED':
+        return (
+          <span className="text-xs font-bold px-3 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5" />
+            CHANGES REQUESTED
+          </span>
+        );
+      case 'REJECTED':
+        return (
+          <span className="text-xs font-bold px-3 py-1 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center gap-1.5">
+            <XCircle className="w-3.5 h-3.5" />
+            REJECTED
+          </span>
+        );
+      case 'DRAFT':
+      default:
+        return (
+          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1.5">
+            <Edit2 className="w-3.5 h-3.5" />
+            DRAFT (Authoring)
+          </span>
+        );
     }
   };
 
@@ -243,24 +333,9 @@ export const TestCaseDetailPage: React.FC = () => {
     }
   };
 
-  const getExecutionBadge = (status: string) => {
-    switch (status) {
-      case 'PASSED':
-        return <Badge variant="pass">Passed</Badge>;
-      case 'FAILED':
-        return <Badge variant="fail">Failed</Badge>;
-      case 'BLOCKED':
-        return <Badge variant="blocked">Blocked</Badge>;
-      case 'SKIPPED':
-        return <Badge variant="neutral">Skipped</Badge>;
-      default:
-        return <Badge variant="neutral">Untested</Badge>;
-    }
-  };
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Top Breadcrumb & Action Bar */}
+      {/* Top Navigation & Action Bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <Link
           to={`/projects/${projectId}/manual/cases`}
@@ -277,8 +352,8 @@ export const TestCaseDetailPage: React.FC = () => {
         </Link>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Button variant="secondary" size="sm" onClick={() => setIsEditModalOpen(true)} leftIcon={<Edit2 size={14} />}>
-            Edit
+          <Button variant="primary" size="sm" onClick={() => setIsEditorOpen(true)} leftIcon={<Edit2 size={14} />}>
+            Edit Case & Steps
           </Button>
           <Button variant="secondary" size="sm" onClick={handleArchive} leftIcon={<Archive size={14} />}>
             Archive
@@ -289,12 +364,86 @@ export const TestCaseDetailPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Review Governance Banner Card */}
+      <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-slate-800 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+            <ShieldCheck className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-400 font-medium">Review Governance:</span>
+              {getReviewStatusBadge(testCase.review_status)}
+            </div>
+            <div className="text-xs text-slate-400 mt-1 flex items-center gap-2">
+              <span>Assigned Reviewer:</span>
+              <strong className="text-slate-200">
+                {testCase.reviewer?.full_name || 'Unassigned'}
+              </strong>
+              {testCase.reviewer?.professional_title && (
+                <span className="italic text-slate-400">({testCase.reviewer.professional_title})</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Governance Action Buttons */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {(testCase.review_status === 'DRAFT' || testCase.review_status === 'CHANGES_REQUESTED' || testCase.review_status === 'REJECTED' || !testCase.review_status) && (
+            <button
+              onClick={() => setIsSubmitReviewModalOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/20 transition-all"
+            >
+              <Send className="w-3.5 h-3.5" />
+              {testCase.review_status === 'CHANGES_REQUESTED' || testCase.review_status === 'REJECTED' ? 'Resubmit for Review' : 'Submit for Peer Review'}
+            </button>
+          )}
+
+          {testCase.review_status === 'IN_REVIEW' && (
+            <>
+              <button
+                onClick={() => setIsApproveModalOpen(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition-all"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Approve Test Case
+              </button>
+
+              <button
+                onClick={() => setIsChangesModalOpen(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shadow-lg shadow-amber-600/20 transition-all"
+              >
+                <AlertCircle className="w-3.5 h-3.5" />
+                Request Changes
+              </button>
+
+              <button
+                onClick={() => setIsRejectModalOpen(true)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-lg shadow-rose-600/20 transition-all"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                Reject
+              </button>
+            </>
+          )}
+
+          {testCase.review_status === 'APPROVED' && (
+            <button
+              onClick={() => setIsChangesModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors"
+            >
+              Request Revisions
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Main Details Card */}
       <Card padding="lg" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {/* Header Row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
               <span
                 style={{
                   fontFamily: 'var(--font-mono)',
@@ -322,14 +471,10 @@ export const TestCaseDetailPage: React.FC = () => {
               >
                 {testCase.test_type || 'FUNCTIONAL'}
               </span>
+              {getSeverityBadge(testCase.severity)}
               <Badge variant={getPriorityBadgeVariant(testCase.priority)}>{testCase.priority}</Badge>
               <Badge variant="neutral">{testCase.status}</Badge>
               <Badge variant="primary">{testCase.template_type}</Badge>
-              {testCase.module_name && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  <Folder size={12} /> {testCase.module_name}
-                </span>
-              )}
             </div>
 
             <h1 style={{ fontSize: '1.375rem', fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -361,13 +506,33 @@ export const TestCaseDetailPage: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* Module / Folder Switcher inline */}
+          <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1.5 min-w-[220px]">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <FolderInput className="w-3.5 h-3.5 text-indigo-400" />
+              Folder Location
+            </span>
+            <select
+              value={selectedTargetModule}
+              onChange={(e) => handleMoveModule(e.target.value)}
+              className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none"
+            >
+              <option value="">[ Unassigned Cases ]</option>
+              {modules.map((m) => (
+                <option key={m.id} value={m.id}>
+                  📁 {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {/* Metadata Grid */}
+        {/* Authorship & Metadata Grid */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
             gap: '16px',
             padding: '16px',
             backgroundColor: 'var(--bg-subtle)',
@@ -396,15 +561,17 @@ export const TestCaseDetailPage: React.FC = () => {
               Est. Duration
             </span>
             <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', marginTop: '4px' }}>
-              {testCase.estimated_duration_minutes ? `${testCase.estimated_duration_minutes} min` : '5 min'}
+              {testCase.estimated_duration_minutes ? `${testCase.estimated_duration_minutes} min` : '10 min'}
             </div>
           </div>
           <div>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Created By / At
+              Author & Created
             </span>
             <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', marginTop: '4px' }}>
-              {testCase.creator?.full_name || 'Engineering'} • {new Date(testCase.created_at).toLocaleDateString()}
+              {testCase.creator?.full_name || 'Engineering'}
+              {testCase.creator?.professional_title && ` (${testCase.creator.professional_title})`}
+              <span className="text-slate-400 block text-[11px]">{new Date(testCase.created_at).toLocaleString()}</span>
             </div>
           </div>
         </div>
@@ -414,7 +581,7 @@ export const TestCaseDetailPage: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
             <ListOrdered size={18} color="var(--primary)" />
             <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-              Test Steps ({testCase.steps?.length || 0})
+              Test Steps & Data ({testCase.steps?.length || 0})
             </h2>
           </div>
 
@@ -459,6 +626,56 @@ export const TestCaseDetailPage: React.FC = () => {
         </div>
       </Card>
 
+      {/* Review History Audit Log */}
+      <Card padding="lg">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <ShieldCheck size={18} color="var(--primary)" />
+          <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+            Review Audit Trail ({reviews.length})
+          </h2>
+        </div>
+
+        {reviews.length > 0 ? (
+          <div className="space-y-3">
+            {reviews.map((rev) => (
+              <div key={rev.id} className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2 py-0.5 rounded font-bold ${
+                      rev.status === 'APPROVED'
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : rev.status === 'CHANGES_REQUESTED'
+                        ? 'bg-rose-500/20 text-rose-300'
+                        : 'bg-amber-500/20 text-amber-300'
+                    }`}>
+                      {rev.status}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-200">
+                      by {rev.reviewer?.full_name || 'Reviewer'}
+                    </span>
+                    {rev.reviewer?.professional_title && (
+                      <span className="text-xs text-slate-400 italic">({rev.reviewer.professional_title})</span>
+                    )}
+                  </div>
+                  {rev.comments && (
+                    <p className="text-xs text-slate-300 bg-slate-900 p-2 rounded-lg border border-slate-800/80">
+                      "{rev.comments}"
+                    </p>
+                  )}
+                </div>
+                <span className="text-[11px] text-slate-500 shrink-0">
+                  {new Date(rev.created_at).toLocaleString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+            No review actions recorded yet. Submit for peer review to begin governance workflow.
+          </div>
+        )}
+      </Card>
+
       {/* Execution History Timeline */}
       <Card padding="lg">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
@@ -477,7 +694,7 @@ export const TestCaseDetailPage: React.FC = () => {
                   <th style={{ padding: '10px 14px', width: '120px' }}>Environment</th>
                   <th style={{ padding: '10px 14px', width: '100px' }}>Result</th>
                   <th style={{ padding: '10px 14px' }}>Actual Result / Notes</th>
-                  <th style={{ padding: '10px 14px', width: '140px' }}>Executed At</th>
+                  <th style={{ padding: '10px 14px', width: '160px' }}>Executor & Time</th>
                 </tr>
               </thead>
               <tbody>
@@ -491,12 +708,17 @@ export const TestCaseDetailPage: React.FC = () => {
                     <td style={{ padding: '12px 14px', color: 'var(--text-secondary)' }}>
                       <Badge variant="neutral">{entry.environment}</Badge>
                     </td>
-                    <td style={{ padding: '12px 14px' }}>{getExecutionBadge(entry.status)}</td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <Badge variant={entry.status === 'PASSED' ? 'pass' : entry.status === 'FAILED' ? 'fail' : 'neutral'}>
+                        {entry.status}
+                      </Badge>
+                    </td>
                     <td style={{ padding: '12px 14px', color: 'var(--text-secondary)' }}>
                       {entry.actual_result || '—'}
                     </td>
                     <td style={{ padding: '12px 14px', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                      {entry.executed_at ? new Date(entry.executed_at).toLocaleString() : '—'}
+                      <div>{entry.executor_name || 'Anonymous'}</div>
+                      <div>{entry.executed_at ? new Date(entry.executed_at).toLocaleString() : '—'}</div>
                     </td>
                   </tr>
                 ))}
@@ -510,235 +732,154 @@ export const TestCaseDetailPage: React.FC = () => {
         )}
       </Card>
 
-      {/* Edit Test Case Modal */}
-      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title={`Edit Test Case [${testCase.key}]`} size="lg">
-        <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '80vh', overflowY: 'auto', paddingRight: '4px' }}>
-          {editError && (
-            <div
-              style={{
-                padding: '10px 14px',
-                backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                border: '1px solid var(--status-fail)',
-                borderRadius: 'var(--radius-md)',
-                color: 'var(--status-fail)',
-                fontSize: '0.8125rem',
-              }}
-            >
-              {editError}
-            </div>
-          )}
-
-          <Input label="Title" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required />
-
-          <Input label="Description" value={editDesc} onChange={(e) => setEditDesc(e.target.value)} />
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-            <div>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
-                Test Type
-              </label>
-              <select
-                value={editType}
-                onChange={(e) => setEditType(e.target.value as any)}
-                style={{ width: '100%', padding: '10px 12px', backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '0.8125rem' }}
-              >
-                {TEST_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
-                Priority
-              </label>
-              <select
-                value={editPriority}
-                onChange={(e) => setEditPriority(e.target.value as any)}
-                style={{ width: '100%', padding: '10px 12px', backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '0.8125rem' }}
-              >
-                <option value="CRITICAL">Critical</option>
-                <option value="HIGH">High</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="LOW">Low</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
-                Status
-              </label>
-              <select
-                value={editStatus}
-                onChange={(e) => setEditStatus(e.target.value as any)}
-                style={{ width: '100%', padding: '10px 12px', backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', color: 'var(--text-primary)', fontSize: '0.8125rem' }}
-              >
-                <option value="ACTIVE">Active</option>
-                <option value="DRAFT">Draft</option>
-                <option value="DEPRECATED">Deprecated</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Tags */}
+      {/* 1. Modal: Submit for Review */}
+      <Modal isOpen={isSubmitReviewModalOpen} onClose={() => setIsSubmitReviewModalOpen(false)} title="Submit Test Case for Peer Review" size="md">
+        <form onSubmit={handleSubmitForReview} className="space-y-4">
           <div>
-            <label style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
-              Tags
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+              Assigned Reviewer
             </label>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <input
-                placeholder="Add tag and press Enter or Add Tag"
-                value={editTagInput}
-                onChange={(e) => setEditTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddEditTag();
-                  }
-                }}
-                style={{
-                  flex: 1,
-                  padding: '8px 12px',
-                  backgroundColor: 'var(--bg-subtle)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.8125rem',
-                  outline: 'none',
-                }}
-              />
-              <Button type="button" variant="secondary" size="sm" onClick={handleAddEditTag}>
-                Add
-              </Button>
-            </div>
-
-            {editTags.length > 0 && (
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
-                {editTags.map((tg) => (
-                  <span
-                    key={tg}
-                    style={{
-                      fontSize: '0.75rem',
-                      padding: '3px 8px',
-                      borderRadius: 'var(--radius-sm)',
-                      backgroundColor: 'rgba(79, 70, 229, 0.12)',
-                      color: 'var(--primary)',
-                      border: '1px solid rgba(79, 70, 229, 0.3)',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                    }}
-                  >
-                    #{tg}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveEditTag(tg)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer',
-                        padding: 0,
-                      }}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 100px', gap: '12px' }}>
-            <Input label="Preconditions" value={editPreconditions} onChange={(e) => setEditPreconditions(e.target.value)} />
-            <Input label="Global Test Data" value={editTestData} onChange={(e) => setEditTestData(e.target.value)} />
-            <Input label="Est. Min" type="number" value={editDuration} onChange={(e) => setEditDuration(e.target.value)} min="1" />
-          </div>
-
-          {/* Edit Steps */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-              <label style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>Steps & Data</label>
-              <Button type="button" variant="secondary" size="sm" onClick={handleAddEditStep} leftIcon={<Plus size={13} />}>
-                Add Step
-              </Button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {editSteps.map((step, idx) => (
-                <div key={idx} style={{ display: 'grid', gridTemplateColumns: '28px 1.2fr 1fr 1.2fr 52px 28px', gap: '8px', alignItems: 'center' }}>
-                  <span style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--primary)', textAlign: 'center' }}>{idx + 1}</span>
-                  <input
-                    value={step.action}
-                    onChange={(e) => handleEditStepChange(idx, 'action', e.target.value)}
-                    placeholder="Action"
-                    style={{ padding: '8px 10px', backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: '0.8125rem' }}
-                  />
-                  <input
-                    value={step.test_data || ''}
-                    onChange={(e) => handleEditStepChange(idx, 'test_data', e.target.value)}
-                    placeholder="Step Test Data"
-                    style={{ padding: '8px 10px', backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', color: 'var(--accent-cyan)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}
-                  />
-                  <input
-                    value={step.expected_result}
-                    onChange={(e) => handleEditStepChange(idx, 'expected_result', e.target.value)}
-                    placeholder="Expected Result"
-                    style={{ padding: '8px 10px', backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', fontSize: '0.8125rem' }}
-                  />
-
-                  {/* Reorder Buttons */}
-                  <div style={{ display: 'flex', gap: '2px' }}>
-                    <button
-                      type="button"
-                      onClick={() => handleMoveEditStep(idx, 'up')}
-                      disabled={idx === 0}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: idx === 0 ? 'var(--border-subtle)' : 'var(--text-secondary)',
-                        cursor: idx === 0 ? 'default' : 'pointer',
-                        padding: '2px',
-                      }}
-                    >
-                      <ArrowUp size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleMoveEditStep(idx, 'down')}
-                      disabled={idx === editSteps.length - 1}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: idx === editSteps.length - 1 ? 'var(--border-subtle)' : 'var(--text-secondary)',
-                        cursor: idx === editSteps.length - 1 ? 'default' : 'pointer',
-                        padding: '2px',
-                      }}
-                    >
-                      <ArrowDown size={14} />
-                    </button>
-                  </div>
-
-                  <button type="button" onClick={() => handleRemoveEditStep(idx)} style={{ background: 'none', border: 'none', color: 'var(--status-fail)', cursor: 'pointer' }}>
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+            <select
+              value={submitReviewerId}
+              onChange={(e) => setSubmitReviewerId(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none"
+            >
+              <option value="">-- Choose Reviewer --</option>
+              {members.map((m) => (
+                <option key={m.user_id} value={m.user_id}>
+                  {m.user?.full_name} ({m.user?.professional_title || m.role})
+                </option>
               ))}
-            </div>
+            </select>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-            <Button type="button" variant="secondary" onClick={() => setIsEditModalOpen(false)}>
+          <div>
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+              Submission Notes / Scope for Reviewer
+            </label>
+            <textarea
+              rows={3}
+              placeholder="e.g. Please verify step 3 payload against v2.0 auth specifications..."
+              value={submitComments}
+              onChange={(e) => setSubmitComments(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none resize-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setIsSubmitReviewModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" isLoading={isSaving}>
-              Save Changes
+            <Button type="submit" variant="primary" isLoading={isSubmittingAction}>
+              Submit for Review
             </Button>
           </div>
         </form>
       </Modal>
+
+      {/* 2. Modal: Approve Test Case */}
+      <Modal isOpen={isApproveModalOpen} onClose={() => setIsApproveModalOpen(false)} title="Approve Test Case" size="md">
+        <form onSubmit={handleApproveTestCase} className="space-y-4">
+          <p className="text-xs text-slate-300">
+            Approving this test case will mark it as <strong className="text-emerald-400">APPROVED</strong> and ready for execution in test runs.
+          </p>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+              Approval Feedback Comments (Optional)
+            </label>
+            <textarea
+              rows={3}
+              placeholder="e.g. Test steps verified and matched against checkout requirements."
+              value={approveComments}
+              onChange={(e) => setApproveComments(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none resize-none"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setIsApproveModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" isLoading={isSubmittingAction}>
+              Confirm Approval
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* 3. Modal: Request Changes */}
+      <Modal isOpen={isChangesModalOpen} onClose={() => setIsChangesModalOpen(false)} title="Request Changes on Test Case" size="md">
+        <form onSubmit={handleRequestChanges} className="space-y-4">
+          <p className="text-xs text-slate-300">
+            Provide feedback explaining what revisions are required by the author before approval.
+          </p>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+              Change Request Comments <span className="text-rose-400">*</span>
+            </label>
+            <textarea
+              rows={4}
+              placeholder="e.g. Please add a verification step for credit card expiry date validation..."
+              value={changesComments}
+              onChange={(e) => setChangesComments(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none resize-none"
+              required
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setIsChangesModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="danger" isLoading={isSubmittingAction}>
+              Request Changes
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* 3b. Modal: Reject Test Case */}
+      <Modal isOpen={isRejectModalOpen} onClose={() => setIsRejectModalOpen(false)} title="Reject Test Case" size="md">
+        <form onSubmit={handleRejectTestCase} className="space-y-4">
+          <p className="text-xs text-rose-300 bg-rose-500/10 p-3 rounded-xl border border-rose-500/20">
+            Rejecting this test case indicates it does not meet quality requirements or is invalid. The author can revise and resubmit it later.
+          </p>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+              Rejection Reason & Comments <span className="text-rose-400">*</span>
+            </label>
+            <textarea
+              rows={4}
+              placeholder="Explain why this test case is rejected..."
+              value={rejectComments}
+              onChange={(e) => setRejectComments(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none resize-none"
+              required
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="secondary" onClick={() => setIsRejectModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="danger" isLoading={isSubmittingAction}>
+              Confirm Rejection
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* 4. Large Responsive Test Case Editor Modal */}
+      <TestCaseEditorModal
+        isOpen={isEditorOpen}
+        onClose={() => setIsEditorOpen(false)}
+        onSave={handleSaveEdit}
+        initialData={testCase}
+        modules={modules}
+      />
     </div>
   );
 };

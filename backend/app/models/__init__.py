@@ -1,12 +1,25 @@
 from app.models.base import BaseModel
 from app.models.user import User
+from app.models.organization import (
+    Organization,
+    OrganizationMember,
+    OrganizationRole,
+    OrganizationInvite,
+    OrganizationJoinCode,
+    generate_join_code,
+    generate_invite_token,
+)
 from app.models.workspace import Workspace
 from app.models.workspace_member import WorkspaceMember, WorkspaceRole
 from app.models.project import Project, ProjectStatus
 from app.models.manual_testing import (
     TestCaseTemplate,
+    TestCaseType,
     TestCasePriority,
+    TestCaseSeverity,
     TestCaseStatus,
+    TestCaseReviewStatus,
+    TestCaseReview,
     TestRunStatus,
     ExecutionStatus,
     EvidenceType,
@@ -24,14 +37,25 @@ from app.models.manual_testing import (
 __all__ = [
     "BaseModel",
     "User",
+    "Organization",
+    "OrganizationMember",
+    "OrganizationRole",
+    "OrganizationInvite",
+    "OrganizationJoinCode",
+    "generate_join_code",
+    "generate_invite_token",
     "Workspace",
     "WorkspaceMember",
     "WorkspaceRole",
     "Project",
     "ProjectStatus",
     "TestCaseTemplate",
+    "TestCaseType",
     "TestCasePriority",
+    "TestCaseSeverity",
     "TestCaseStatus",
+    "TestCaseReviewStatus",
+    "TestCaseReview",
     "TestRunStatus",
     "ExecutionStatus",
     "EvidenceType",

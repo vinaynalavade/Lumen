@@ -5,7 +5,9 @@ from app.models.manual_testing import (
     TestCaseTemplate,
     TestCaseType,
     TestCasePriority,
+    TestCaseSeverity,
     TestCaseStatus,
+    TestCaseReviewStatus,
     TestRunStatus,
     ExecutionStatus,
     EvidenceType,
@@ -59,6 +61,28 @@ class TestCaseStepResponse(TestCaseStepBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+# 2b. Test Case Review Schemas
+class TestCaseReviewCreate(BaseModel):
+    comments: Optional[str] = None
+
+
+class TestCaseSubmitReviewRequest(BaseModel):
+    reviewer_id: Optional[str] = None
+    comments: Optional[str] = None
+
+
+class TestCaseReviewResponse(BaseModel):
+    id: str
+    test_case_id: str
+    reviewer_id: str
+    status: TestCaseReviewStatus
+    comments: Optional[str] = None
+    created_at: datetime
+    reviewer: Optional[UserResponse] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # 3. Test Case Schemas
 class TestCaseBase(BaseModel):
     title: str
@@ -67,7 +91,10 @@ class TestCaseBase(BaseModel):
     template_type: TestCaseTemplate = TestCaseTemplate.STANDARD
     test_type: TestCaseType = TestCaseType.FUNCTIONAL
     priority: TestCasePriority = TestCasePriority.MEDIUM
+    severity: TestCaseSeverity = TestCaseSeverity.MEDIUM
     status: TestCaseStatus = TestCaseStatus.ACTIVE
+    review_status: TestCaseReviewStatus = TestCaseReviewStatus.DRAFT
+    reviewer_id: Optional[str] = None
     tags: List[str] = []
     preconditions: Optional[str] = None
     test_data: Optional[str] = None
@@ -86,13 +113,25 @@ class TestCaseUpdate(BaseModel):
     template_type: Optional[TestCaseTemplate] = None
     test_type: Optional[TestCaseType] = None
     priority: Optional[TestCasePriority] = None
+    severity: Optional[TestCaseSeverity] = None
     status: Optional[TestCaseStatus] = None
+    review_status: Optional[TestCaseReviewStatus] = None
+    reviewer_id: Optional[str] = None
     tags: Optional[List[str]] = None
     preconditions: Optional[str] = None
     test_data: Optional[str] = None
     expected_result: Optional[str] = None
     estimated_duration_minutes: Optional[int] = None
     steps: Optional[List[TestCaseStepCreate]] = None
+
+
+class TestCaseMoveModuleRequest(BaseModel):
+    target_module_id: Optional[str] = None  # None means unassigned
+
+
+class TestCaseBulkMoveRequest(BaseModel):
+    test_case_ids: List[str]
+    target_module_id: Optional[str] = None  # None means unassigned
 
 
 class TestCaseResponse(TestCaseBase):
@@ -105,6 +144,8 @@ class TestCaseResponse(TestCaseBase):
     created_at: datetime
     updated_at: datetime
     creator: Optional[UserResponse] = None
+    updater: Optional[UserResponse] = None
+    reviewer: Optional[UserResponse] = None
     module_name: Optional[str] = None
     step_count: int = 0
     last_execution_status: Optional[ExecutionStatus] = None
@@ -114,6 +155,7 @@ class TestCaseResponse(TestCaseBase):
 
 class TestCaseDetailResponse(TestCaseResponse):
     steps: List[TestCaseStepResponse] = []
+    review_history: List[TestCaseReviewResponse] = []
 
 
 # 4. Test Suite Schemas
@@ -206,15 +248,22 @@ class TestRunItemResponse(BaseModel):
     test_data: Optional[str] = None
     expected_result: Optional[str] = None
     priority: str
+    severity: str = "MEDIUM"
     test_type: str = "FUNCTIONAL"
     tags: List[str] = []
     status: ExecutionStatus
     actual_result: Optional[str] = None
     notes: Optional[str] = None
+    assigned_to_id: Optional[str] = None
     executed_by_id: Optional[str] = None
+    updated_by_id: Optional[str] = None
+    execution_started_at: Optional[datetime] = None
+    execution_completed_at: Optional[datetime] = None
     executed_at: Optional[datetime] = None
     duration_seconds: int = 0
+    assigned_to: Optional[UserResponse] = None
     executor: Optional[UserResponse] = None
+    updater: Optional[UserResponse] = None
     step_results: List[TestRunItemStepResultResponse] = []
     evidences: List[ExecutionEvidenceResponse] = []
 
@@ -226,7 +275,13 @@ class ExecuteTestItemRequest(BaseModel):
     actual_result: Optional[str] = None
     notes: Optional[str] = None
     duration_seconds: Optional[int] = 0
+    execution_started_at: Optional[datetime] = None
+    execution_completed_at: Optional[datetime] = None
     step_results: Optional[List[StepExecutionInput]] = None
+
+
+class TestRunItemAssignRequest(BaseModel):
+    assigned_to_id: Optional[str] = None
 
 
 # 8. Test Run Schemas
@@ -237,6 +292,10 @@ class TestRunCreate(BaseModel):
     test_case_ids: Optional[List[str]] = None  # If not using suite
 
 
+class TestRunAssignRequest(BaseModel):
+    assigned_to_id: Optional[str] = None
+
+
 class TestRunResponse(BaseModel):
     id: str
     project_id: str
@@ -245,11 +304,15 @@ class TestRunResponse(BaseModel):
     environment: str
     status: TestRunStatus
     created_by_id: Optional[str] = None
+    started_by_id: Optional[str] = None
+    updated_by_id: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     creator: Optional[UserResponse] = None
+    started_by: Optional[UserResponse] = None
+    updater: Optional[UserResponse] = None
     suite_name: Optional[str] = None
     
     # Progress Counts

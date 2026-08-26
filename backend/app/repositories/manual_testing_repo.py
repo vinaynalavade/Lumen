@@ -1,12 +1,13 @@
 from datetime import datetime, timezone
 from typing import List, Optional, Tuple, Dict, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, desc, or_
 
 from app.models.manual_testing import (
     TestModule,
     TestCase,
     TestCaseStep,
+    TestCaseReview,
     TestSuite,
     TestSuiteTestCase,
     TestRun,
@@ -14,7 +15,9 @@ from app.models.manual_testing import (
     TestRunItemStepResult,
     ExecutionEvidence,
     TestCaseStatus,
+    TestCaseReviewStatus,
     TestCasePriority,
+    TestCaseSeverity,
     TestRunStatus,
     ExecutionStatus,
     EvidenceType,
@@ -82,25 +85,47 @@ class TestCaseRepository(BaseRepository[TestCase]):
         db: Session,
         project_id: str,
         module_id: Optional[str] = None,
+        unassigned_only: bool = False,
         priority: Optional[TestCasePriority] = None,
+        severity: Optional[TestCaseSeverity] = None,
         status: Optional[TestCaseStatus] = None,
+        review_status: Optional[TestCaseReviewStatus] = None,
+        reviewer_id: Optional[str] = None,
         test_type: Optional[Any] = None,
         tag: Optional[str] = None,
         search: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> Tuple[List[TestCase], int]:
-        query = db.query(TestCase).filter(TestCase.project_id == project_id)
+        query = (
+            db.query(TestCase)
+            .options(
+                joinedload(TestCase.creator),
+                joinedload(TestCase.updater),
+                joinedload(TestCase.reviewer),
+                joinedload(TestCase.module),
+            )
+            .filter(TestCase.project_id == project_id)
+        )
 
-        if module_id:
+        if unassigned_only:
+            query = query.filter(TestCase.module_id == None)
+        elif module_id:
             query = query.filter(TestCase.module_id == module_id)
+
         if priority:
             query = query.filter(TestCase.priority == priority)
+        if severity:
+            query = query.filter(TestCase.severity == severity)
         if status:
             query = query.filter(TestCase.status == status)
         else:
             # By default exclude ARCHIVED unless explicitly filtered
             query = query.filter(TestCase.status != TestCaseStatus.ARCHIVED)
+        if review_status:
+            query = query.filter(TestCase.review_status == review_status)
+        if reviewer_id:
+            query = query.filter(TestCase.reviewer_id == reviewer_id)
         if test_type:
             query = query.filter(TestCase.test_type == test_type)
         if tag:
@@ -114,6 +139,7 @@ class TestCaseRepository(BaseRepository[TestCase]):
                     TestCase.key.ilike(search_pattern),
                     TestCase.description.ilike(search_pattern),
                     TestCase.tags.ilike(search_pattern),
+                    TestCase.preconditions.ilike(search_pattern),
                 )
             )
 
@@ -139,7 +165,10 @@ class TestCaseRepository(BaseRepository[TestCase]):
             template_type=obj_in.template_type,
             test_type=obj_in.test_type,
             priority=obj_in.priority,
+            severity=obj_in.severity,
             status=obj_in.status,
+            review_status=obj_in.review_status,
+            reviewer_id=obj_in.reviewer_id,
             tags=tags_str,
             preconditions=obj_in.preconditions.strip() if obj_in.preconditions else None,
             test_data=obj_in.test_data.strip() if obj_in.test_data else None,
@@ -179,7 +208,10 @@ class TestCaseRepository(BaseRepository[TestCase]):
             "template_type",
             "test_type",
             "priority",
+            "severity",
             "status",
+            "review_status",
+            "reviewer_id",
             "preconditions",
             "test_data",
             "expected_result",
@@ -217,9 +249,60 @@ class TestCaseRepository(BaseRepository[TestCase]):
         db.refresh(db_case)
         return db_case
 
+    def bulk_move_cases(
+        self, db: Session, project_id: str, case_ids: List[str], target_module_id: Optional[str], user_id: str
+    ) -> int:
+        updated_count = (
+            db.query(TestCase)
+            .filter(TestCase.project_id == project_id, TestCase.id.in_(case_ids))
+            .update(
+                {
+                    TestCase.module_id: target_module_id,
+                    TestCase.updated_by_id: user_id,
+                    TestCase.updated_at: utc_now(),
+                },
+                synchronize_session=False,
+            )
+        )
+        db.commit()
+        return updated_count
+
+    def create_review(
+        self,
+        db: Session,
+        test_case_id: str,
+        reviewer_id: str,
+        status: TestCaseReviewStatus,
+        comments: Optional[str] = None,
+    ) -> TestCaseReview:
+        review = TestCaseReview(
+            test_case_id=test_case_id,
+            reviewer_id=reviewer_id,
+            status=status,
+            comments=comments.strip() if comments else None,
+        )
+        db.add(review)
+        db.commit()
+        db.refresh(review)
+        return review
+
+    def get_reviews(self, db: Session, test_case_id: str) -> List[TestCaseReview]:
+        return (
+            db.query(TestCaseReview)
+            .options(joinedload(TestCaseReview.reviewer))
+            .filter(TestCaseReview.test_case_id == test_case_id)
+            .order_by(TestCaseReview.created_at.desc())
+            .all()
+        )
+
     def get_case_history(self, db: Session, test_case_id: str) -> List[TestRunItem]:
         return (
             db.query(TestRunItem)
+            .options(
+                joinedload(TestRunItem.test_run),
+                joinedload(TestRunItem.executor),
+                joinedload(TestRunItem.assigned_to),
+            )
             .join(TestRun, TestRunItem.test_run_id == TestRun.id)
             .filter(TestRunItem.test_case_id == test_case_id)
             .order_by(desc(TestRunItem.executed_at), desc(TestRun.created_at))
@@ -235,6 +318,7 @@ class TestSuiteRepository(BaseRepository[TestSuite]):
     def get_project_suites(self, db: Session, project_id: str) -> List[TestSuite]:
         return (
             db.query(TestSuite)
+            .options(joinedload(TestSuite.creator))
             .filter(TestSuite.project_id == project_id)
             .order_by(TestSuite.created_at.desc())
             .all()
@@ -284,6 +368,12 @@ class TestRunRepository(BaseRepository[TestRun]):
     def get_project_runs(self, db: Session, project_id: str) -> List[TestRun]:
         return (
             db.query(TestRun)
+            .options(
+                joinedload(TestRun.creator),
+                joinedload(TestRun.started_by),
+                joinedload(TestRun.updater),
+                joinedload(TestRun.suite),
+            )
             .filter(TestRun.project_id == project_id)
             .order_by(TestRun.created_at.desc())
             .all()
@@ -304,6 +394,7 @@ class TestRunRepository(BaseRepository[TestRun]):
             environment=obj_in.environment.strip(),
             status=TestRunStatus.IN_PROGRESS,
             created_by_id=user_id,
+            started_by_id=user_id,
             started_at=utc_now(),
         )
         db.add(db_run)
@@ -322,6 +413,7 @@ class TestRunRepository(BaseRepository[TestRun]):
                 test_data=tc.test_data,
                 expected_result=tc.expected_result,
                 priority=tc.priority.value if hasattr(tc.priority, "value") else str(tc.priority),
+                severity=tc.severity.value if hasattr(tc.severity, "value") else str(tc.severity),
                 test_type=tc.test_type.value if hasattr(tc.test_type, "value") else str(tc.test_type),
                 tags=tc.tags,
                 status=ExecutionStatus.UNTESTED,
@@ -345,6 +437,20 @@ class TestRunRepository(BaseRepository[TestRun]):
         db.refresh(db_run)
         return db_run
 
+    def assign_item(
+        self,
+        db: Session,
+        item: TestRunItem,
+        assigned_to_id: Optional[str],
+        user_id: str,
+    ) -> TestRunItem:
+        item.assigned_to_id = assigned_to_id
+        item.updated_by_id = user_id
+        item.updated_at = utc_now()
+        db.commit()
+        db.refresh(item)
+        return item
+
     def execute_item(
         self,
         db: Session,
@@ -357,7 +463,13 @@ class TestRunRepository(BaseRepository[TestRun]):
         item.notes = req.notes
         item.duration_seconds = req.duration_seconds or 0
         item.executed_by_id = user_id
+        item.updated_by_id = user_id
         item.executed_at = utc_now()
+        if req.execution_started_at:
+            item.execution_started_at = req.execution_started_at
+        elif not item.execution_started_at:
+            item.execution_started_at = utc_now()
+        item.execution_completed_at = req.execution_completed_at or utc_now()
 
         # Update step statuses if supplied
         if req.step_results:
@@ -373,11 +485,11 @@ class TestRunRepository(BaseRepository[TestRun]):
         db.refresh(item)
 
         # Check if all items in test run are completed
-        self.check_and_update_run_completion(db, item.test_run_id)
+        self.check_and_update_run_completion(db, item.test_run_id, user_id)
 
         return item
 
-    def check_and_update_run_completion(self, db: Session, test_run_id: str) -> None:
+    def check_and_update_run_completion(self, db: Session, test_run_id: str, user_id: Optional[str] = None) -> None:
         run = db.get(TestRun, test_run_id)
         if not run or run.status == TestRunStatus.COMPLETED:
             return
@@ -393,6 +505,8 @@ class TestRunRepository(BaseRepository[TestRun]):
         if untested == 0 and len(run.items) > 0:
             run.status = TestRunStatus.COMPLETED
             run.completed_at = utc_now()
+            if user_id:
+                run.updated_by_id = user_id
             db.commit()
 
     def add_evidence(

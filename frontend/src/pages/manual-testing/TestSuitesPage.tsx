@@ -421,6 +421,15 @@ export const TestSuitesPage: React.FC = () => {
                       {tc.key}
                     </span>
                     <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', flex: 1 }}>{tc.title}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                      tc.review_status === 'APPROVED'
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : tc.review_status === 'IN_REVIEW'
+                        ? 'bg-amber-500/20 text-amber-300'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {tc.review_status || 'DRAFT'}
+                    </span>
                     <Badge variant="neutral">{tc.priority}</Badge>
                   </div>
                 );

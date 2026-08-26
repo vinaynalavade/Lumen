@@ -6,9 +6,12 @@ import type {
   TestRun,
   TestRunItem,
   TestCaseHistoryEntry,
+  TestCaseReview,
   ExecutionEvidence,
   TestCasePriority,
+  TestCaseSeverity,
   TestCaseStatus,
+  TestCaseReviewStatus,
   ExecutionStatus,
 } from '../types';
 
@@ -39,8 +42,12 @@ export const manualTestingApi = {
     projectId: string,
     params?: {
       module_id?: string;
+      unassigned_only?: boolean;
       priority?: TestCasePriority;
+      severity?: TestCaseSeverity;
       status?: TestCaseStatus;
+      review_status?: TestCaseReviewStatus;
+      reviewer_id?: string;
       test_type?: string;
       tag?: string;
       search?: string;
@@ -48,8 +55,12 @@ export const manualTestingApi = {
   ): Promise<TestCase[]> => {
     const searchParams = new URLSearchParams();
     if (params?.module_id) searchParams.append('module_id', params.module_id);
+    if (params?.unassigned_only) searchParams.append('unassigned_only', 'true');
     if (params?.priority) searchParams.append('priority', params.priority);
+    if (params?.severity) searchParams.append('severity', params.severity);
     if (params?.status) searchParams.append('status', params.status);
+    if (params?.review_status) searchParams.append('review_status', params.review_status);
+    if (params?.reviewer_id) searchParams.append('reviewer_id', params.reviewer_id);
     if (params?.test_type) searchParams.append('test_type', params.test_type);
     if (params?.tag) searchParams.append('tag', params.tag);
     if (params?.search) searchParams.append('search', params.search);
@@ -69,6 +80,40 @@ export const manualTestingApi = {
 
   updateTestCase: async (caseId: string, data: Partial<TestCase> & { steps?: any[] }): Promise<TestCase> => {
     return ApiClient.put<TestCase>(`/test-cases/${caseId}`, data);
+  },
+
+  moveTestCaseModule: async (caseId: string, targetModuleId: string | null): Promise<TestCase> => {
+    return ApiClient.put<TestCase>(`/test-cases/${caseId}/move-module`, { target_module_id: targetModuleId });
+  },
+
+  bulkMoveTestCases: async (projectId: string, testCaseIds: string[], targetModuleId: string | null): Promise<{ message: string; moved_count: number }> => {
+    return ApiClient.post<{ message: string; moved_count: number }>(`/projects/${projectId}/test-cases/bulk-move`, {
+      test_case_ids: testCaseIds,
+      target_module_id: targetModuleId,
+    });
+  },
+
+  // -----------------------------------------------------------
+  // 2b. Test Case Review Governance
+  // -----------------------------------------------------------
+  submitForReview: async (caseId: string, data: { reviewer_id?: string | null; comments?: string }): Promise<TestCase> => {
+    return ApiClient.post<TestCase>(`/test-cases/${caseId}/submit-review`, data);
+  },
+
+  approveTestCase: async (caseId: string, data: { comments?: string }): Promise<TestCase> => {
+    return ApiClient.post<TestCase>(`/test-cases/${caseId}/approve`, data);
+  },
+
+  requestChanges: async (caseId: string, data: { comments?: string }): Promise<TestCase> => {
+    return ApiClient.post<TestCase>(`/test-cases/${caseId}/request-changes`, data);
+  },
+
+  rejectTestCase: async (caseId: string, data: { comments?: string }): Promise<TestCase> => {
+    return ApiClient.post<TestCase>(`/test-cases/${caseId}/reject`, data);
+  },
+
+  getTestCaseReviews: async (caseId: string): Promise<TestCaseReview[]> => {
+    return ApiClient.get<TestCaseReview[]>(`/test-cases/${caseId}/reviews`);
   },
 
   archiveTestCase: async (caseId: string): Promise<TestCase> => {
@@ -125,6 +170,10 @@ export const manualTestingApi = {
     return ApiClient.get<TestRun>(`/runs/${runId}`);
   },
 
+  assignTestRunItem: async (runId: string, itemId: string, assignedToId: string | null): Promise<TestRunItem> => {
+    return ApiClient.post<TestRunItem>(`/runs/${runId}/items/${itemId}/assign`, { assigned_to_id: assignedToId });
+  },
+
   executeTestItem: async (
     runId: string,
     itemId: string,
@@ -133,6 +182,8 @@ export const manualTestingApi = {
       actual_result?: string;
       notes?: string;
       duration_seconds?: number;
+      execution_started_at?: string;
+      execution_completed_at?: string;
       step_results?: { step_number: number; status: ExecutionStatus; actual_result?: string }[];
     }
   ): Promise<TestRunItem> => {

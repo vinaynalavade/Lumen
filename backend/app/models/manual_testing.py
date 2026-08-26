@@ -1,4 +1,5 @@
 import enum
+from datetime import datetime, timezone
 from sqlalchemy import (
     Column,
     String,
@@ -37,11 +38,27 @@ class TestCasePriority(str, enum.Enum):
     LOW = "LOW"
 
 
+class TestCaseSeverity(str, enum.Enum):
+    CRITICAL = "CRITICAL"
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+
+
 class TestCaseStatus(str, enum.Enum):
     DRAFT = "DRAFT"
     ACTIVE = "ACTIVE"
     DEPRECATED = "DEPRECATED"
     ARCHIVED = "ARCHIVED"
+
+
+class TestCaseReviewStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    IN_REVIEW = "IN_REVIEW"
+    CHANGES_REQUESTED = "CHANGES_REQUESTED"
+    REJECTED = "REJECTED"
+    APPROVED = "APPROVED"
+    DEPRECATED = "DEPRECATED"
 
 
 class TestRunStatus(str, enum.Enum):
@@ -95,7 +112,9 @@ class TestCase(BaseModel):
     template_type = Column(SQLEnum(TestCaseTemplate), default=TestCaseTemplate.STANDARD, nullable=False)
     test_type = Column(SQLEnum(TestCaseType), default=TestCaseType.FUNCTIONAL, nullable=False)
     priority = Column(SQLEnum(TestCasePriority), default=TestCasePriority.MEDIUM, nullable=False)
+    severity = Column(SQLEnum(TestCaseSeverity), default=TestCaseSeverity.MEDIUM, nullable=False)
     status = Column(SQLEnum(TestCaseStatus), default=TestCaseStatus.ACTIVE, nullable=False)
+    review_status = Column(SQLEnum(TestCaseReviewStatus), default=TestCaseReviewStatus.DRAFT, nullable=False)
     tags = Column(String(500), nullable=True)
     preconditions = Column(Text, nullable=True)
     test_data = Column(Text, nullable=True)
@@ -103,6 +122,7 @@ class TestCase(BaseModel):
     estimated_duration_minutes = Column(Integer, nullable=True)
     created_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     updated_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reviewer_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     # Relationships
     project = relationship("Project", backref="test_cases")
@@ -110,7 +130,23 @@ class TestCase(BaseModel):
     steps = relationship("TestCaseStep", back_populates="test_case", cascade="all, delete-orphan", order_by="TestCaseStep.step_number")
     creator = relationship("User", foreign_keys=[created_by_id])
     updater = relationship("User", foreign_keys=[updated_by_id])
+    reviewer = relationship("User", foreign_keys=[reviewer_id])
+    review_history = relationship("TestCaseReview", back_populates="test_case", cascade="all, delete-orphan", order_by="TestCaseReview.created_at.desc()")
     suite_memberships = relationship("TestSuiteTestCase", back_populates="test_case", cascade="all, delete-orphan")
+
+
+# 2b. Test Case Review Audit / History
+class TestCaseReview(BaseModel):
+    __tablename__ = "test_case_reviews"
+
+    test_case_id = Column(String(36), ForeignKey("test_cases.id", ondelete="CASCADE"), nullable=False, index=True)
+    reviewer_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(SQLEnum(TestCaseReviewStatus), nullable=False)
+    comments = Column(Text, nullable=True)
+
+    # Relationships
+    test_case = relationship("TestCase", back_populates="review_history")
+    reviewer = relationship("User", foreign_keys=[reviewer_id])
 
 
 # 3. Test Case Step
@@ -172,6 +208,8 @@ class TestRun(BaseModel):
     environment = Column(String(100), default="Staging", nullable=False)
     status = Column(SQLEnum(TestRunStatus), default=TestRunStatus.IN_PROGRESS, nullable=False)
     created_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    started_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    updated_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -179,6 +217,8 @@ class TestRun(BaseModel):
     project = relationship("Project", backref="test_runs")
     suite = relationship("TestSuite", back_populates="runs")
     creator = relationship("User", foreign_keys=[created_by_id])
+    started_by = relationship("User", foreign_keys=[started_by_id])
+    updater = relationship("User", foreign_keys=[updated_by_id])
     items = relationship("TestRunItem", back_populates="test_run", cascade="all, delete-orphan", order_by="TestRunItem.order_index")
 
 
@@ -198,21 +238,28 @@ class TestRunItem(BaseModel):
     test_data = Column(Text, nullable=True)
     expected_result = Column(Text, nullable=True)
     priority = Column(String(20), default="MEDIUM", nullable=False)
+    severity = Column(String(20), default="MEDIUM", nullable=False)
     test_type = Column(String(50), default="FUNCTIONAL", nullable=False)
     tags = Column(String(500), nullable=True)
 
-    # Execution State
+    # Execution State & Assignment
     status = Column(SQLEnum(ExecutionStatus), default=ExecutionStatus.UNTESTED, nullable=False)
     actual_result = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
+    assigned_to_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     executed_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    updated_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    execution_started_at = Column(DateTime(timezone=True), nullable=True)
+    execution_completed_at = Column(DateTime(timezone=True), nullable=True)
     executed_at = Column(DateTime(timezone=True), nullable=True)
     duration_seconds = Column(Integer, default=0, nullable=False)
 
     # Relationships
     test_run = relationship("TestRun", back_populates="items")
     source_case = relationship("TestCase", foreign_keys=[test_case_id])
+    assigned_to = relationship("User", foreign_keys=[assigned_to_id])
     executor = relationship("User", foreign_keys=[executed_by_id])
+    updater = relationship("User", foreign_keys=[updated_by_id])
     step_results = relationship("TestRunItemStepResult", back_populates="test_run_item", cascade="all, delete-orphan", order_by="TestRunItemStepResult.step_number")
     evidences = relationship("ExecutionEvidence", back_populates="test_run_item", cascade="all, delete-orphan")
 

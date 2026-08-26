@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 from app.api.deps import get_db, get_current_user
@@ -20,11 +20,12 @@ router = APIRouter()
 
 @router.get("", response_model=List[WorkspaceResponse])
 def get_workspaces(
+    organization_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """List all workspaces the authenticated user belongs to."""
-    return workspace_service.get_user_workspaces(db, current_user)
+    """List all workspaces the authenticated user belongs to (optionally filtered by organization)."""
+    return workspace_service.get_user_workspaces(db, current_user, organization_id=organization_id)
 
 
 @router.post("", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)

@@ -1,4 +1,5 @@
 export type WorkspaceRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
+export type OrganizationRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
 
 export interface User {
   id: string;
@@ -17,6 +18,61 @@ export interface AuthResponse {
   user: User;
 }
 
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  owner_id: string;
+  current_user_role?: OrganizationRole;
+  workspace_count?: number;
+  member_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrganizationMember {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  role: OrganizationRole;
+  joined_at: string;
+  user?: User;
+}
+
+export interface OrganizationInvite {
+  id: string;
+  organization_id: string;
+  token: string;
+  role: OrganizationRole;
+  created_by_id: string;
+  expires_at?: string | null;
+  max_uses: number;
+  uses_count: number;
+  is_revoked: boolean;
+  created_at: string;
+}
+
+export interface OrganizationInvitePublic {
+  token: string;
+  organization_name: string;
+  organization_id: string;
+  role: OrganizationRole;
+  is_valid: boolean;
+  message?: string | null;
+}
+
+export interface OrganizationJoinCode {
+  id: string;
+  organization_id: string;
+  code: string;
+  role: OrganizationRole;
+  is_active: boolean;
+  expires_at?: string | null;
+  max_uses?: number | null;
+  uses_count: number;
+}
+
 export interface WorkspaceMember {
   id: string;
   workspace_id: string;
@@ -27,6 +83,7 @@ export interface WorkspaceMember {
 
 export interface Workspace {
   id: string;
+  organization_id?: string | null;
   name: string;
   slug: string;
   description?: string | null;
@@ -64,7 +121,7 @@ export interface ProjectSummary {
 }
 
 // -------------------------------------------------------------
-// Phase 1: Manual Testing Types
+// Phase 1: Manual Testing & Governance Types
 // -------------------------------------------------------------
 export type TestCaseTemplate = 'STANDARD' | 'SIMPLE';
 export type TestCaseType = 
@@ -78,7 +135,10 @@ export type TestCaseType =
   | 'NEGATIVE' 
   | 'EDGE_CASE';
 export type TestCasePriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+export type TestCaseSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 export type TestCaseStatus = 'DRAFT' | 'ACTIVE' | 'DEPRECATED' | 'ARCHIVED';
+export type TestCaseReviewStatus = 'DRAFT' | 'IN_REVIEW' | 'CHANGES_REQUESTED' | 'REJECTED' | 'APPROVED' | 'DEPRECATED';
+
 export type TestRunStatus = 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'ABORTED';
 export type ExecutionStatus = 'UNTESTED' | 'PASSED' | 'FAILED' | 'BLOCKED' | 'SKIPPED';
 export type EvidenceType = 'NOTE' | 'LOG_TEXT' | 'FILE_ATTACHMENT';
@@ -103,6 +163,16 @@ export interface TestCaseStep {
   test_data?: string | null;
 }
 
+export interface TestCaseReview {
+  id: string;
+  test_case_id: string;
+  reviewer_id: string;
+  status: TestCaseReviewStatus;
+  comments?: string | null;
+  created_at: string;
+  reviewer?: User | null;
+}
+
 export interface TestCase {
   id: string;
   project_id: string;
@@ -114,7 +184,10 @@ export interface TestCase {
   template_type: TestCaseTemplate;
   test_type: TestCaseType;
   priority: TestCasePriority;
+  severity: TestCaseSeverity;
   status: TestCaseStatus;
+  review_status: TestCaseReviewStatus;
+  reviewer_id?: string | null;
   tags?: string[];
   preconditions?: string | null;
   test_data?: string | null;
@@ -125,10 +198,13 @@ export interface TestCase {
   created_at: string;
   updated_at: string;
   creator?: User | null;
+  updater?: User | null;
+  reviewer?: User | null;
   module_name?: string | null;
   step_count: number;
   last_execution_status?: ExecutionStatus | null;
   steps?: TestCaseStep[];
+  review_history?: TestCaseReview[];
 }
 
 export interface TestSuite {
@@ -179,15 +255,22 @@ export interface TestRunItem {
   test_data?: string | null;
   expected_result?: string | null;
   priority: string;
+  severity: string;
   test_type?: string;
   tags?: string[];
   status: ExecutionStatus;
   actual_result?: string | null;
   notes?: string | null;
+  assigned_to_id?: string | null;
   executed_by_id?: string | null;
+  updated_by_id?: string | null;
+  execution_started_at?: string | null;
+  execution_completed_at?: string | null;
   executed_at?: string | null;
   duration_seconds: number;
+  assigned_to?: User | null;
   executor?: User | null;
+  updater?: User | null;
   step_results: TestRunItemStepResult[];
   evidences: ExecutionEvidence[];
 }
@@ -200,11 +283,15 @@ export interface TestRun {
   environment: string;
   status: TestRunStatus;
   created_by_id?: string | null;
+  started_by_id?: string | null;
+  updated_by_id?: string | null;
   started_at?: string | null;
   completed_at?: string | null;
   created_at: string;
   updated_at: string;
   creator?: User | null;
+  started_by?: User | null;
+  updater?: User | null;
   suite_name?: string | null;
   total_items: number;
   passed_count: number;

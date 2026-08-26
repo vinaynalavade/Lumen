@@ -10,12 +10,16 @@ import {
   Paperclip,
   ChevronRight,
   ChevronLeft,
+  UserCheck,
 } from 'lucide-react';
 import { manualTestingApi } from '../../services/manualTestingApi';
+import { workspaceApi } from '../../services/workspaceApi';
+import { useWorkspace } from '../../context/WorkspaceContext';
 import type {
   TestRun,
   TestRunItem,
   ExecutionStatus,
+  WorkspaceMember,
 } from '../../types';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
@@ -23,16 +27,19 @@ import { Badge } from '../../components/common/Badge';
 
 export const TestRunnerWorkstation: React.FC = () => {
   const { projectId, runId } = useParams<{ projectId: string; runId: string }>();
+  const { activeWorkspace } = useWorkspace();
 
   const [testRun, setTestRun] = useState<TestRun | null>(null);
   const [activeItemIndex, setActiveItemIndex] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
 
   // Active item execution state
   const [actualResult, setActualResult] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [stepStatuses, setStepStatuses] = useState<{ [stepNum: number]: ExecutionStatus }>({});
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isAssigning, setIsAssigning] = useState<boolean>(false);
 
   // Evidence state
   const [evidenceTitle, setEvidenceTitle] = useState<string>('');
@@ -57,6 +64,10 @@ export const TestRunnerWorkstation: React.FC = () => {
         });
         setStepStatuses(initSteps);
       }
+
+      if (activeWorkspace) {
+        workspaceApi.getWorkspaceMembers(activeWorkspace.id).then(setMembers).catch(console.error);
+      }
     } catch (err) {
       console.error('Failed to load test run execution data:', err);
     } finally {
@@ -66,7 +77,7 @@ export const TestRunnerWorkstation: React.FC = () => {
 
   useEffect(() => {
     loadRun();
-  }, [runId]);
+  }, [runId, activeWorkspace?.id]);
 
   const activeItem: TestRunItem | undefined = testRun?.items?.[activeItemIndex];
 
@@ -82,6 +93,23 @@ export const TestRunnerWorkstation: React.FC = () => {
       initSteps[s.step_number] = s.status;
     });
     setStepStatuses(initSteps);
+  };
+
+  const handleAssignItem = async (assignedToId: string | null) => {
+    if (!runId || !activeItem) return;
+    setIsAssigning(true);
+    try {
+      const updated = await manualTestingApi.assignTestRunItem(runId, activeItem.id, assignedToId);
+      setTestRun((prev) => {
+        if (!prev || !prev.items) return prev;
+        const newItems = prev.items.map((i) => (i.id === updated.id ? updated : i));
+        return { ...prev, items: newItems };
+      });
+    } catch (err) {
+      console.error('Failed to assign executor:', err);
+    } finally {
+      setIsAssigning(false);
+    }
   };
 
   const handleStepStatusChange = (stepNum: number, status: ExecutionStatus) => {
@@ -175,6 +203,37 @@ export const TestRunnerWorkstation: React.FC = () => {
     }
   };
 
+  const getSeverityBadge = (severity?: string) => {
+    switch (severity) {
+      case 'CRITICAL':
+        return (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30">
+            💥 CRITICAL
+          </span>
+        );
+      case 'HIGH':
+        return (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
+            🔥 HIGH
+          </span>
+        );
+      case 'MEDIUM':
+        return (
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+            ⚡ MEDIUM
+          </span>
+        );
+      case 'LOW':
+        return (
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+            🌱 LOW
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {/* 1. Top Runner Header Bar */}
@@ -235,7 +294,8 @@ export const TestRunnerWorkstation: React.FC = () => {
               </Badge>
             </div>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Case {activeItemIndex + 1} of {items.length} • {testRun.completion_percentage}% Completed
+              Case {activeItemIndex + 1} of {items.length} • {testRun.completion_percentage}% Completed • Started by{' '}
+              <strong className="text-slate-200">{testRun.started_by?.full_name || testRun.creator?.full_name || 'QA Team'}</strong>
             </p>
           </div>
         </div>
@@ -258,11 +318,11 @@ export const TestRunnerWorkstation: React.FC = () => {
       </div>
 
       {/* 2. Main Split Runner Workstation */}
-      <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '16px', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '16px', alignItems: 'start' }}>
         {/* Left: Test Cases Playlist */}
         <Card padding="sm" style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '78vh', overflowY: 'auto' }}>
           <div style={{ padding: '8px 12px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Run Test Cases ({items.length})
+            Run Test Items ({items.length})
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -297,6 +357,12 @@ export const TestRunnerWorkstation: React.FC = () => {
                         {item.title}
                       </span>
                     </div>
+                    {item.assigned_to && (
+                      <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+                        <UserCheck className="w-3 h-3 text-indigo-400" />
+                        <span>{item.assigned_to.full_name}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -318,8 +384,8 @@ export const TestRunnerWorkstation: React.FC = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {/* Case Snapshot Card */}
             <Card padding="lg" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
-                <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
                     <span
                       style={{
@@ -349,6 +415,7 @@ export const TestRunnerWorkstation: React.FC = () => {
                         {activeItem.test_type}
                       </span>
                     )}
+                    {getSeverityBadge(activeItem.severity)}
                     <Badge variant="neutral">{activeItem.priority}</Badge>
                     <Badge
                       variant={
@@ -372,48 +439,47 @@ export const TestRunnerWorkstation: React.FC = () => {
                       {activeItem.description}
                     </p>
                   )}
-
-                  {activeItem.tags && activeItem.tags.length > 0 && (
-                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px' }}>
-                      {activeItem.tags.map((tg) => (
-                        <span
-                          key={tg}
-                          style={{
-                            fontSize: '0.6875rem',
-                            padding: '1px 6px',
-                            borderRadius: 'var(--radius-sm)',
-                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                            color: 'var(--text-muted)',
-                            border: '1px solid var(--border-subtle)',
-                          }}
-                        >
-                          #{tg}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
 
-                {/* Case Prev / Next switcher */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={activeItemIndex === 0}
-                    onClick={() => handleSelectCase(activeItemIndex - 1)}
-                    leftIcon={<ChevronLeft size={14} />}
-                  >
-                    Prev
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={activeItemIndex === items.length - 1}
-                    onClick={() => handleSelectCase(activeItemIndex + 1)}
-                    rightIcon={<ChevronRight size={14} />}
-                  >
-                    Next
-                  </Button>
+                {/* Executor Assignment & Case Switcher */}
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center gap-2">
+                    <UserCheck className="w-4 h-4 text-indigo-400" />
+                    <select
+                      value={activeItem.assigned_to_id || ''}
+                      onChange={(e) => handleAssignItem(e.target.value || null)}
+                      disabled={isAssigning}
+                      className="bg-transparent text-xs text-slate-200 border-none focus:outline-none"
+                    >
+                      <option value="" className="bg-slate-900">-- Assign Executor --</option>
+                      {members.map((m) => (
+                        <option key={m.user_id} value={m.user_id} className="bg-slate-900">
+                          {m.user?.full_name} ({m.user?.professional_title || m.role})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={activeItemIndex === 0}
+                      onClick={() => handleSelectCase(activeItemIndex - 1)}
+                      leftIcon={<ChevronLeft size={14} />}
+                    >
+                      Prev
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={activeItemIndex === items.length - 1}
+                      onClick={() => handleSelectCase(activeItemIndex + 1)}
+                      rightIcon={<ChevronRight size={14} />}
+                    >
+                      Next
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -625,7 +691,10 @@ export const TestRunnerWorkstation: React.FC = () => {
               >
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   {activeItem.executed_at ? (
-                    <span>Last executed at {new Date(activeItem.executed_at).toLocaleTimeString()}</span>
+                    <span>
+                      Executed by <strong className="text-slate-200">{activeItem.executor?.full_name || 'QA Member'}</strong> on{' '}
+                      {new Date(activeItem.executed_at).toLocaleString()}
+                    </span>
                   ) : (
                     <span>Ready for execution</span>
                   )}

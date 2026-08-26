@@ -17,4 +17,6 @@ class User(BaseModel):
     # Relationships
     owned_workspaces = relationship("Workspace", back_populates="owner", cascade="all, delete-orphan")
     memberships = relationship("WorkspaceMember", back_populates="user", cascade="all, delete-orphan")
+    owned_organizations = relationship("Organization", foreign_keys="Organization.owner_id", back_populates="owner", cascade="all, delete-orphan")
+    organization_memberships = relationship("OrganizationMember", foreign_keys="OrganizationMember.user_id", back_populates="user", cascade="all, delete-orphan")
     created_projects = relationship("Project", back_populates="creator")

@@ -207,25 +207,65 @@ export const TestRunnerWorkstation: React.FC = () => {
     switch (severity) {
       case 'CRITICAL':
         return (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30">
+          <span
+            style={{
+              fontSize: '0.625rem',
+              fontWeight: 700,
+              padding: '2px 6px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'var(--status-fail-bg)',
+              color: 'var(--status-fail)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+            }}
+          >
             💥 CRITICAL
           </span>
         );
       case 'HIGH':
         return (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
+          <span
+            style={{
+              fontSize: '0.625rem',
+              fontWeight: 700,
+              padding: '2px 6px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'var(--status-blocked-bg)',
+              color: 'var(--status-blocked)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+            }}
+          >
             🔥 HIGH
           </span>
         );
       case 'MEDIUM':
         return (
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+          <span
+            style={{
+              fontSize: '0.625rem',
+              fontWeight: 600,
+              padding: '2px 6px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'rgba(79, 70, 229, 0.15)',
+              color: '#818cf8',
+              border: '1px solid rgba(79, 70, 229, 0.3)',
+            }}
+          >
             ⚡ MEDIUM
           </span>
         );
       case 'LOW':
         return (
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+          <span
+            style={{
+              fontSize: '0.625rem',
+              fontWeight: 600,
+              padding: '2px 6px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'var(--bg-subtle)',
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
             🌱 LOW
           </span>
         );
@@ -295,7 +335,9 @@ export const TestRunnerWorkstation: React.FC = () => {
             </div>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
               Case {activeItemIndex + 1} of {items.length} • {testRun.completion_percentage}% Completed • Started by{' '}
-              <strong className="text-slate-200">{testRun.started_by?.full_name || testRun.creator?.full_name || 'QA Team'}</strong>
+              <strong style={{ color: 'var(--text-primary)' }}>
+                {testRun.started_by?.full_name || testRun.creator?.full_name || 'QA Team'}
+              </strong>
             </p>
           </div>
         </div>
@@ -358,8 +400,8 @@ export const TestRunnerWorkstation: React.FC = () => {
                       </span>
                     </div>
                     {item.assigned_to && (
-                      <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
-                        <UserCheck className="w-3 h-3 text-indigo-400" />
+                      <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <UserCheck size={12} color="var(--primary)" />
                         <span>{item.assigned_to.full_name}</span>
                       </div>
                     )}
@@ -442,18 +484,35 @@ export const TestRunnerWorkstation: React.FC = () => {
                 </div>
 
                 {/* Executor Assignment & Case Switcher */}
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center gap-2">
-                    <UserCheck className="w-4 h-4 text-indigo-400" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 'var(--radius-md)',
+                      backgroundColor: 'var(--bg-subtle)',
+                      border: '1px solid var(--border-subtle)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <UserCheck size={14} color="var(--primary)" />
                     <select
                       value={activeItem.assigned_to_id || ''}
                       onChange={(e) => handleAssignItem(e.target.value || null)}
                       disabled={isAssigning}
-                      className="bg-transparent text-xs text-slate-200 border-none focus:outline-none"
+                      style={{
+                        backgroundColor: 'transparent',
+                        fontSize: '0.75rem',
+                        color: 'var(--text-primary)',
+                        border: 'none',
+                        outline: 'none',
+                        cursor: 'pointer',
+                      }}
                     >
-                      <option value="" className="bg-slate-900">-- Assign Executor --</option>
+                      <option value="">-- Assign Executor --</option>
                       {members.map((m) => (
-                        <option key={m.user_id} value={m.user_id} className="bg-slate-900">
+                        <option key={m.user_id} value={m.user_id}>
                           {m.user?.full_name} ({m.user?.professional_title || m.role})
                         </option>
                       ))}
@@ -692,7 +751,7 @@ export const TestRunnerWorkstation: React.FC = () => {
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   {activeItem.executed_at ? (
                     <span>
-                      Executed by <strong className="text-slate-200">{activeItem.executor?.full_name || 'QA Member'}</strong> on{' '}
+                      Executed by <strong style={{ color: 'var(--text-primary)' }}>{activeItem.executor?.full_name || 'QA Member'}</strong> on{' '}
                       {new Date(activeItem.executed_at).toLocaleString()}
                     </span>
                   ) : (

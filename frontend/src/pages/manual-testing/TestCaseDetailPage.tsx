@@ -242,25 +242,65 @@ export const TestCaseDetailPage: React.FC = () => {
     switch (severity) {
       case 'CRITICAL':
         return (
-          <span className="text-xs font-bold px-3 py-1 rounded-md bg-rose-500/15 text-rose-400 border border-rose-500/30">
+          <span
+            style={{
+              fontSize: '0.6875rem',
+              fontWeight: 700,
+              padding: '3px 8px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'var(--status-fail-bg)',
+              color: 'var(--status-fail)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+            }}
+          >
             💥 CRITICAL IMPACT
           </span>
         );
       case 'HIGH':
         return (
-          <span className="text-xs font-bold px-3 py-1 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30">
+          <span
+            style={{
+              fontSize: '0.6875rem',
+              fontWeight: 700,
+              padding: '3px 8px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'var(--status-blocked-bg)',
+              color: 'var(--status-blocked)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+            }}
+          >
             🔥 HIGH IMPACT
           </span>
         );
       case 'MEDIUM':
         return (
-          <span className="text-xs font-semibold px-3 py-1 rounded-md bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+          <span
+            style={{
+              fontSize: '0.6875rem',
+              fontWeight: 600,
+              padding: '3px 8px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'rgba(79, 70, 229, 0.15)',
+              color: '#818cf8',
+              border: '1px solid rgba(79, 70, 229, 0.3)',
+            }}
+          >
             ⚡ MEDIUM IMPACT
           </span>
         );
       case 'LOW':
         return (
-          <span className="text-xs font-semibold px-3 py-1 rounded-md bg-slate-800 text-slate-400 border border-slate-700">
+          <span
+            style={{
+              fontSize: '0.6875rem',
+              fontWeight: 600,
+              padding: '3px 8px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'var(--bg-subtle)',
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
             🌱 LOW IMPACT
           </span>
         );
@@ -273,37 +313,102 @@ export const TestCaseDetailPage: React.FC = () => {
     switch (reviewStatus) {
       case 'APPROVED':
         return (
-          <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5" />
+          <span
+            style={{
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              padding: '3px 10px',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'var(--status-pass-bg)',
+              color: 'var(--status-pass)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <CheckCircle2 size={14} />
             APPROVED (Ready for Run)
           </span>
         );
       case 'IN_REVIEW':
         return (
-          <span className="text-xs font-bold px-3 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5" />
+          <span
+            style={{
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              padding: '3px 10px',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'var(--status-blocked-bg)',
+              color: 'var(--status-blocked)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <Clock size={14} />
             PEER REVIEW IN PROGRESS
           </span>
         );
       case 'CHANGES_REQUESTED':
         return (
-          <span className="text-xs font-bold px-3 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
-            <AlertCircle className="w-3.5 h-3.5" />
+          <span
+            style={{
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              padding: '3px 10px',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'var(--status-blocked-bg)',
+              color: 'var(--status-blocked)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <AlertCircle size={14} />
             CHANGES REQUESTED
           </span>
         );
       case 'REJECTED':
         return (
-          <span className="text-xs font-bold px-3 py-1 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center gap-1.5">
-            <XCircle className="w-3.5 h-3.5" />
+          <span
+            style={{
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              padding: '3px 10px',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'var(--status-fail-bg)',
+              color: 'var(--status-fail)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <XCircle size={14} />
             REJECTED
           </span>
         );
       case 'DRAFT':
       default:
         return (
-          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1.5">
-            <Edit2 className="w-3.5 h-3.5" />
+          <span
+            style={{
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              padding: '3px 10px',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'var(--bg-subtle)',
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border-subtle)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <Edit2 size={14} />
             DRAFT (Authoring)
           </span>
         );
@@ -331,6 +436,28 @@ export const TestCaseDetailPage: React.FC = () => {
       default:
         return 'var(--primary)';
     }
+  };
+
+  const selectStyle: React.CSSProperties = {
+    padding: '8px 12px',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--bg-input)',
+    border: '1px solid var(--border-subtle)',
+    color: 'var(--text-primary)',
+    fontSize: '0.8125rem',
+    outline: 'none',
+  };
+
+  const textareaStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '10px 12px',
+    backgroundColor: 'var(--bg-input)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 'var(--radius-md)',
+    color: 'var(--text-primary)',
+    fontSize: '0.8125rem',
+    outline: 'none',
+    resize: 'vertical',
   };
 
   return (
@@ -365,75 +492,113 @@ export const TestCaseDetailPage: React.FC = () => {
       </div>
 
       {/* Review Governance Banner Card */}
-      <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-slate-800 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-            <ShieldCheck className="w-6 h-6" />
+      <div
+        style={{
+          padding: '20px 24px',
+          borderRadius: 'var(--radius-lg)',
+          backgroundColor: 'var(--bg-card)',
+          border: '1px solid var(--border-strong)',
+          boxShadow: 'var(--shadow-md)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '16px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div
+            style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(79, 70, 229, 0.15)',
+              color: 'var(--primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <ShieldCheck size={24} />
           </div>
           <div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-400 font-medium">Review Governance:</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                Review Governance:
+              </span>
               {getReviewStatusBadge(testCase.review_status)}
             </div>
-            <div className="text-xs text-slate-400 mt-1 flex items-center gap-2">
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span>Assigned Reviewer:</span>
-              <strong className="text-slate-200">
+              <strong style={{ color: 'var(--text-primary)' }}>
                 {testCase.reviewer?.full_name || 'Unassigned'}
               </strong>
               {testCase.reviewer?.professional_title && (
-                <span className="italic text-slate-400">({testCase.reviewer.professional_title})</span>
+                <span style={{ fontStyle: 'italic', color: 'var(--text-secondary)' }}>
+                  ({testCase.reviewer.professional_title})
+                </span>
               )}
             </div>
           </div>
         </div>
 
         {/* Governance Action Buttons */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          {(testCase.review_status === 'DRAFT' || testCase.review_status === 'CHANGES_REQUESTED' || testCase.review_status === 'REJECTED' || !testCase.review_status) && (
-            <button
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {(testCase.review_status === 'DRAFT' ||
+            testCase.review_status === 'CHANGES_REQUESTED' ||
+            testCase.review_status === 'REJECTED' ||
+            !testCase.review_status) && (
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => setIsSubmitReviewModalOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/20 transition-all"
+              leftIcon={<Send size={14} />}
             >
-              <Send className="w-3.5 h-3.5" />
-              {testCase.review_status === 'CHANGES_REQUESTED' || testCase.review_status === 'REJECTED' ? 'Resubmit for Review' : 'Submit for Peer Review'}
-            </button>
+              {testCase.review_status === 'CHANGES_REQUESTED' || testCase.review_status === 'REJECTED'
+                ? 'Resubmit for Review'
+                : 'Submit for Peer Review'}
+            </Button>
           )}
 
           {testCase.review_status === 'IN_REVIEW' && (
             <>
-              <button
+              <Button
+                variant="pass"
+                size="sm"
                 onClick={() => setIsApproveModalOpen(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition-all"
+                leftIcon={<CheckCircle2 size={14} />}
               >
-                <CheckCircle2 className="w-3.5 h-3.5" />
                 Approve Test Case
-              </button>
+              </Button>
 
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setIsChangesModalOpen(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shadow-lg shadow-amber-600/20 transition-all"
+                leftIcon={<AlertCircle size={14} />}
               >
-                <AlertCircle className="w-3.5 h-3.5" />
                 Request Changes
-              </button>
+              </Button>
 
-              <button
+              <Button
+                variant="danger"
+                size="sm"
                 onClick={() => setIsRejectModalOpen(true)}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-lg shadow-rose-600/20 transition-all"
+                leftIcon={<XCircle size={14} />}
               >
-                <XCircle className="w-3.5 h-3.5" />
                 Reject
-              </button>
+              </Button>
             </>
           )}
 
           {testCase.review_status === 'APPROVED' && (
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setIsChangesModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors"
             >
               Request Revisions
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -508,15 +673,37 @@ export const TestCaseDetailPage: React.FC = () => {
           </div>
 
           {/* Module / Folder Switcher inline */}
-          <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1.5 min-w-[220px]">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-              <FolderInput className="w-3.5 h-3.5 text-indigo-400" />
+          <div
+            style={{
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--bg-subtle)',
+              border: '1px solid var(--border-subtle)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              minWidth: '220px',
+            }}
+          >
+            <span
+              style={{
+                fontSize: '0.6875rem',
+                fontWeight: 700,
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <FolderInput size={13} color="var(--primary)" />
               Folder Location
             </span>
             <select
               value={selectedTargetModule}
               onChange={(e) => handleMoveModule(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none"
+              style={selectStyle}
             >
               <option value="">[ Unassigned Cases ]</option>
               {modules.map((m) => (
@@ -571,7 +758,9 @@ export const TestCaseDetailPage: React.FC = () => {
             <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', marginTop: '4px' }}>
               {testCase.creator?.full_name || 'Engineering'}
               {testCase.creator?.professional_title && ` (${testCase.creator.professional_title})`}
-              <span className="text-slate-400 block text-[11px]">{new Date(testCase.created_at).toLocaleString()}</span>
+              <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.6875rem' }}>
+                {new Date(testCase.created_at).toLocaleString()}
+              </span>
             </div>
           </div>
         </div>
@@ -636,34 +825,71 @@ export const TestCaseDetailPage: React.FC = () => {
         </div>
 
         {reviews.length > 0 ? (
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {reviews.map((rev) => (
-              <div key={rev.id} className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2 py-0.5 rounded font-bold ${
-                      rev.status === 'APPROVED'
-                        ? 'bg-emerald-500/20 text-emerald-300'
-                        : rev.status === 'CHANGES_REQUESTED'
-                        ? 'bg-rose-500/20 text-rose-300'
-                        : 'bg-amber-500/20 text-amber-300'
-                    }`}>
+              <div
+                key={rev.id}
+                style={{
+                  padding: '14px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--bg-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: '16px',
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span
+                      style={{
+                        fontSize: '0.6875rem',
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: 'var(--radius-sm)',
+                        backgroundColor:
+                          rev.status === 'APPROVED'
+                            ? 'var(--status-pass-bg)'
+                            : rev.status === 'CHANGES_REQUESTED' || rev.status === 'REJECTED'
+                            ? 'var(--status-fail-bg)'
+                            : 'var(--status-blocked-bg)',
+                        color:
+                          rev.status === 'APPROVED'
+                            ? 'var(--status-pass)'
+                            : rev.status === 'CHANGES_REQUESTED' || rev.status === 'REJECTED'
+                            ? 'var(--status-fail)'
+                            : 'var(--status-blocked)',
+                      }}
+                    >
                       {rev.status}
                     </span>
-                    <span className="text-xs font-semibold text-slate-200">
+                    <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                       by {rev.reviewer?.full_name || 'Reviewer'}
                     </span>
                     {rev.reviewer?.professional_title && (
-                      <span className="text-xs text-slate-400 italic">({rev.reviewer.professional_title})</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        ({rev.reviewer.professional_title})
+                      </span>
                     )}
                   </div>
                   {rev.comments && (
-                    <p className="text-xs text-slate-300 bg-slate-900 p-2 rounded-lg border border-slate-800/80">
+                    <p
+                      style={{
+                        fontSize: '0.8125rem',
+                        color: 'var(--text-secondary)',
+                        backgroundColor: 'var(--bg-card)',
+                        padding: '8px 12px',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--border-subtle)',
+                        marginTop: '4px',
+                      }}
+                    >
                       "{rev.comments}"
                     </p>
                   )}
                 </div>
-                <span className="text-[11px] text-slate-500 shrink-0">
+                <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {new Date(rev.created_at).toLocaleString()}
                 </span>
               </div>
@@ -734,15 +960,15 @@ export const TestCaseDetailPage: React.FC = () => {
 
       {/* 1. Modal: Submit for Review */}
       <Modal isOpen={isSubmitReviewModalOpen} onClose={() => setIsSubmitReviewModalOpen(false)} title="Submit Test Case for Peer Review" size="md">
-        <form onSubmit={handleSubmitForReview} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+        <form onSubmit={handleSubmitForReview} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
               Assigned Reviewer
             </label>
             <select
               value={submitReviewerId}
               onChange={(e) => setSubmitReviewerId(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none"
+              style={selectStyle}
             >
               <option value="">-- Choose Reviewer --</option>
               {members.map((m) => (
@@ -753,8 +979,8 @@ export const TestCaseDetailPage: React.FC = () => {
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
               Submission Notes / Scope for Reviewer
             </label>
             <textarea
@@ -762,11 +988,11 @@ export const TestCaseDetailPage: React.FC = () => {
               placeholder="e.g. Please verify step 3 payload against v2.0 auth specifications..."
               value={submitComments}
               onChange={(e) => setSubmitComments(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none resize-none"
+              style={textareaStyle}
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '8px' }}>
             <Button type="button" variant="secondary" onClick={() => setIsSubmitReviewModalOpen(false)}>
               Cancel
             </Button>
@@ -779,13 +1005,13 @@ export const TestCaseDetailPage: React.FC = () => {
 
       {/* 2. Modal: Approve Test Case */}
       <Modal isOpen={isApproveModalOpen} onClose={() => setIsApproveModalOpen(false)} title="Approve Test Case" size="md">
-        <form onSubmit={handleApproveTestCase} className="space-y-4">
-          <p className="text-xs text-slate-300">
-            Approving this test case will mark it as <strong className="text-emerald-400">APPROVED</strong> and ready for execution in test runs.
+        <form onSubmit={handleApproveTestCase} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+            Approving this test case will mark it as <strong style={{ color: 'var(--status-pass)' }}>APPROVED</strong> and ready for execution in test runs.
           </p>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
               Approval Feedback Comments (Optional)
             </label>
             <textarea
@@ -793,11 +1019,11 @@ export const TestCaseDetailPage: React.FC = () => {
               placeholder="e.g. Test steps verified and matched against checkout requirements."
               value={approveComments}
               onChange={(e) => setApproveComments(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none resize-none"
+              style={textareaStyle}
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '8px' }}>
             <Button type="button" variant="secondary" onClick={() => setIsApproveModalOpen(false)}>
               Cancel
             </Button>
@@ -810,26 +1036,26 @@ export const TestCaseDetailPage: React.FC = () => {
 
       {/* 3. Modal: Request Changes */}
       <Modal isOpen={isChangesModalOpen} onClose={() => setIsChangesModalOpen(false)} title="Request Changes on Test Case" size="md">
-        <form onSubmit={handleRequestChanges} className="space-y-4">
-          <p className="text-xs text-slate-300">
+        <form onSubmit={handleRequestChanges} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
             Provide feedback explaining what revisions are required by the author before approval.
           </p>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-              Change Request Comments <span className="text-rose-400">*</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              Change Request Comments <span style={{ color: 'var(--status-fail)' }}>*</span>
             </label>
             <textarea
               rows={4}
               placeholder="e.g. Please add a verification step for credit card expiry date validation..."
               value={changesComments}
               onChange={(e) => setChangesComments(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none resize-none"
+              style={textareaStyle}
               required
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '8px' }}>
             <Button type="button" variant="secondary" onClick={() => setIsChangesModalOpen(false)}>
               Cancel
             </Button>
@@ -842,26 +1068,35 @@ export const TestCaseDetailPage: React.FC = () => {
 
       {/* 3b. Modal: Reject Test Case */}
       <Modal isOpen={isRejectModalOpen} onClose={() => setIsRejectModalOpen(false)} title="Reject Test Case" size="md">
-        <form onSubmit={handleRejectTestCase} className="space-y-4">
-          <p className="text-xs text-rose-300 bg-rose-500/10 p-3 rounded-xl border border-rose-500/20">
+        <form onSubmit={handleRejectTestCase} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div
+            style={{
+              padding: '12px 14px',
+              backgroundColor: 'var(--status-fail-bg)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--status-fail)',
+              fontSize: '0.8125rem',
+            }}
+          >
             Rejecting this test case indicates it does not meet quality requirements or is invalid. The author can revise and resubmit it later.
-          </p>
+          </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-              Rejection Reason & Comments <span className="text-rose-400">*</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              Rejection Reason & Comments <span style={{ color: 'var(--status-fail)' }}>*</span>
             </label>
             <textarea
               rows={4}
               placeholder="Explain why this test case is rejected..."
               value={rejectComments}
               onChange={(e) => setRejectComments(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-sm focus:outline-none resize-none"
+              style={textareaStyle}
               required
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '8px' }}>
             <Button type="button" variant="secondary" onClick={() => setIsRejectModalOpen(false)}>
               Cancel
             </Button>

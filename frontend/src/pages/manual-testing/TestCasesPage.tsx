@@ -4,29 +4,28 @@ import {
   Search,
   Plus,
   Folder,
-  Archive,
   Layers,
-  FileText,
-  CheckSquare,
-  Square,
-  FolderInput,
-  FolderCheck,
   Edit3,
+  Archive,
+  Square,
+  CheckSquare,
+  FolderCheck,
+  FolderInput,
+  FileText,
 } from 'lucide-react';
 import { manualTestingApi } from '../../services/manualTestingApi';
 import type {
-  TestModule,
   TestCase,
+  TestModule,
   TestCasePriority,
   TestCaseSeverity,
-  TestCaseReviewStatus,
   TestCaseType,
-  TestCaseStep,
+  TestCaseReviewStatus,
 } from '../../types';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
-import { Input } from '../../components/common/Input';
 import { Badge } from '../../components/common/Badge';
+import { Input } from '../../components/common/Input';
 import { Modal } from '../../components/common/Modal';
 import { TestCaseEditorModal } from '../../components/manual-testing/TestCaseEditorModal';
 
@@ -46,26 +45,27 @@ export const TestCasesPage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
 
-  const [modules, setModules] = useState<TestModule[]>([]);
   const [testCases, setTestCases] = useState<TestCase[]>([]);
-  const [selectedModuleId, setSelectedModuleId] = useState<string | null | 'unassigned'>(null);
+  const [modules, setModules] = useState<TestModule[]>([]);
+  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Filters
   const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<TestCasePriority | ''>('');
   const [severityFilter, setSeverityFilter] = useState<TestCaseSeverity | ''>('');
   const [reviewStatusFilter, setReviewStatusFilter] = useState<TestCaseReviewStatus | ''>('');
-  const [typeFilter, setTypeFilter] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Bulk Selection
+  // Bulk Selection State
   const [selectedCaseIds, setSelectedCaseIds] = useState<string[]>([]);
   const [bulkTargetModuleId, setBulkTargetModuleId] = useState<string>('');
-  const [isBulkMoving, setIsBulkMoving] = useState(false);
+  const [isBulkMoving, setIsBulkMoving] = useState<boolean>(false);
 
-  // Create/Edit Case Modal
+  // Modal States
   const [isCaseModalOpen, setIsCaseModalOpen] = useState(false);
   const [editingCase, setEditingCase] = useState<TestCase | null>(null);
 
-  // Create Module Modal
   const [isModuleModalOpen, setIsModuleModalOpen] = useState(false);
   const [moduleName, setModuleName] = useState('');
   const [moduleDesc, setModuleDesc] = useState('');
@@ -75,25 +75,28 @@ export const TestCasesPage: React.FC = () => {
     if (!projectId) return;
     setIsLoading(true);
     try {
-      const isUnassigned = selectedModuleId === 'unassigned';
-      const actualModuleId = isUnassigned ? undefined : selectedModuleId || undefined;
-
-      const [modList, caseList] = await Promise.all([
-        manualTestingApi.getModules(projectId),
+      const [cases, mods] = await Promise.all([
         manualTestingApi.getTestCases(projectId, {
-          module_id: actualModuleId,
-          unassigned_only: isUnassigned ? true : undefined,
+          module_id: selectedModuleId === 'unassigned' ? undefined : selectedModuleId || undefined,
+          search: search.trim() || undefined,
+          test_type: typeFilter || undefined,
           priority: priorityFilter || undefined,
           severity: severityFilter || undefined,
           review_status: reviewStatusFilter || undefined,
-          test_type: typeFilter || undefined,
-          search: search || undefined,
         }),
+        manualTestingApi.getModules(projectId),
       ]);
-      setModules(modList);
-      setTestCases(caseList);
+
+      // If user specifically picked "unassigned", filter in memory if needed
+      if (selectedModuleId === 'unassigned') {
+        setTestCases(cases.filter((c) => !c.module_id));
+      } else {
+        setTestCases(cases);
+      }
+
+      setModules(mods);
     } catch (err) {
-      console.error('Failed to load manual test data:', err);
+      console.error('Failed to load test cases:', err);
     } finally {
       setIsLoading(false);
     }
@@ -101,15 +104,41 @@ export const TestCasesPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, [
-    projectId,
-    selectedModuleId,
-    priorityFilter,
-    severityFilter,
-    reviewStatusFilter,
-    typeFilter,
-    search,
-  ]);
+    setSelectedCaseIds([]);
+  }, [projectId, selectedModuleId, search, typeFilter, priorityFilter, severityFilter, reviewStatusFilter]);
+
+  const handleSaveCase = async (caseData: any, submitForReview = false, reviewerId?: string | null) => {
+    if (!projectId) return;
+    try {
+      if (editingCase) {
+        await manualTestingApi.updateTestCase(editingCase.id, caseData);
+        if (submitForReview) {
+          await manualTestingApi.submitForReview(editingCase.id, { reviewer_id: reviewerId });
+        }
+      } else {
+        const created = await manualTestingApi.createTestCase(projectId, caseData);
+        if (submitForReview) {
+          await manualTestingApi.submitForReview(created.id, { reviewer_id: reviewerId });
+        }
+      }
+      setIsCaseModalOpen(false);
+      setEditingCase(null);
+      loadData();
+    } catch (err) {
+      console.error('Failed to save test case:', err);
+    }
+  };
+
+  const handleArchiveCase = async (e: React.MouseEvent, caseId: string) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to archive this test case?')) return;
+    try {
+      await manualTestingApi.archiveTestCase(caseId);
+      loadData();
+    } catch (err) {
+      console.error('Failed to archive test case:', err);
+    }
+  };
 
   const handleCreateModule = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,46 +149,14 @@ export const TestCasesPage: React.FC = () => {
         name: moduleName.trim(),
         description: moduleDesc.trim() || undefined,
       });
+      setIsModuleModalOpen(false);
       setModuleName('');
       setModuleDesc('');
-      setIsModuleModalOpen(false);
       loadData();
     } catch (err) {
-      console.error('Failed to create module:', err);
+      console.error('Failed to create folder module:', err);
     } finally {
       setIsCreatingModule(false);
-    }
-  };
-
-  const handleSaveCase = async (
-    caseData: Partial<TestCase> & { steps?: TestCaseStep[] },
-    submitForReview = false,
-    reviewerId?: string | null
-  ) => {
-    if (!projectId) return;
-    if (editingCase) {
-      await manualTestingApi.updateTestCase(editingCase.id, caseData);
-      if (submitForReview) {
-        await manualTestingApi.submitForReview(editingCase.id, { reviewer_id: reviewerId });
-      }
-    } else {
-      const created = await manualTestingApi.createTestCase(projectId, caseData);
-      if (submitForReview) {
-        await manualTestingApi.submitForReview(created.id, { reviewer_id: reviewerId });
-      }
-    }
-    loadData();
-  };
-
-  const handleArchiveCase = async (e: React.MouseEvent, caseId: string) => {
-    e.stopPropagation();
-    if (confirm('Archive this test case?')) {
-      try {
-        await manualTestingApi.archiveTestCase(caseId);
-        loadData();
-      } catch (err) {
-        console.error('Failed to archive case:', err);
-      }
     }
   };
 
@@ -168,25 +165,25 @@ export const TestCasesPage: React.FC = () => {
     if (selectedCaseIds.length === testCases.length) {
       setSelectedCaseIds([]);
     } else {
-      setSelectedCaseIds(testCases.map((tc) => tc.id));
+      setSelectedCaseIds(testCases.map((c) => c.id));
     }
   };
 
-  const handleToggleSelectCase = (e: React.MouseEvent, caseId: string) => {
+  const handleToggleSelectCase = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (selectedCaseIds.includes(caseId)) {
-      setSelectedCaseIds(selectedCaseIds.filter((id) => id !== caseId));
+    if (selectedCaseIds.includes(id)) {
+      setSelectedCaseIds(selectedCaseIds.filter((item) => item !== id));
     } else {
-      setSelectedCaseIds([...selectedCaseIds, caseId]);
+      setSelectedCaseIds([...selectedCaseIds, id]);
     }
   };
 
   const handleBulkMove = async () => {
-    if (!projectId || selectedCaseIds.length === 0) return;
+    if (selectedCaseIds.length === 0 || !projectId) return;
     setIsBulkMoving(true);
     try {
-      const targetId = bulkTargetModuleId === 'unassigned' || !bulkTargetModuleId ? null : bulkTargetModuleId;
-      await manualTestingApi.bulkMoveTestCases(projectId, selectedCaseIds, targetId);
+      const targetModuleId = bulkTargetModuleId === 'unassigned' || !bulkTargetModuleId ? null : bulkTargetModuleId;
+      await manualTestingApi.bulkMoveTestCases(projectId, selectedCaseIds, targetModuleId);
       setSelectedCaseIds([]);
       setBulkTargetModuleId('');
       loadData();
@@ -218,25 +215,65 @@ export const TestCasesPage: React.FC = () => {
     switch (severity) {
       case 'CRITICAL':
         return (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30">
+          <span
+            style={{
+              fontSize: '0.625rem',
+              fontWeight: 700,
+              padding: '2px 6px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'var(--status-fail-bg)',
+              color: 'var(--status-fail)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+            }}
+          >
             💥 CRITICAL
           </span>
         );
       case 'HIGH':
         return (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">
+          <span
+            style={{
+              fontSize: '0.625rem',
+              fontWeight: 700,
+              padding: '2px 6px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'var(--status-blocked-bg)',
+              color: 'var(--status-blocked)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+            }}
+          >
             🔥 HIGH
           </span>
         );
       case 'MEDIUM':
         return (
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+          <span
+            style={{
+              fontSize: '0.625rem',
+              fontWeight: 600,
+              padding: '2px 6px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'rgba(79, 70, 229, 0.15)',
+              color: '#818cf8',
+              border: '1px solid rgba(79, 70, 229, 0.3)',
+            }}
+          >
             ⚡ MEDIUM
           </span>
         );
       case 'LOW':
         return (
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+          <span
+            style={{
+              fontSize: '0.625rem',
+              fontWeight: 600,
+              padding: '2px 6px',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: 'var(--bg-subtle)',
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
             🌱 LOW
           </span>
         );
@@ -249,32 +286,82 @@ export const TestCasesPage: React.FC = () => {
     switch (reviewStatus) {
       case 'APPROVED':
         return (
-          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+          <span
+            style={{
+              fontSize: '0.625rem',
+              fontWeight: 700,
+              padding: '2px 7px',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'var(--status-pass-bg)',
+              color: 'var(--status-pass)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+            }}
+          >
             ✓ APPROVED
           </span>
         );
       case 'IN_REVIEW':
         return (
-          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
+          <span
+            style={{
+              fontSize: '0.625rem',
+              fontWeight: 700,
+              padding: '2px 7px',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'var(--status-blocked-bg)',
+              color: 'var(--status-blocked)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+            }}
+          >
             ⏳ IN REVIEW
           </span>
         );
       case 'CHANGES_REQUESTED':
         return (
-          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
+          <span
+            style={{
+              fontSize: '0.625rem',
+              fontWeight: 700,
+              padding: '2px 7px',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'var(--status-blocked-bg)',
+              color: 'var(--status-blocked)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+            }}
+          >
             ✍ CHANGES REQ.
           </span>
         );
       case 'REJECTED':
         return (
-          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30">
+          <span
+            style={{
+              fontSize: '0.625rem',
+              fontWeight: 700,
+              padding: '2px 7px',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'var(--status-fail-bg)',
+              color: 'var(--status-fail)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+            }}
+          >
             ✕ REJECTED
           </span>
         );
       case 'DRAFT':
       default:
         return (
-          <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+          <span
+            style={{
+              fontSize: '0.625rem',
+              fontWeight: 600,
+              padding: '2px 7px',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'var(--bg-subtle)',
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
             DRAFT
           </span>
         );
@@ -320,8 +407,26 @@ export const TestCasesPage: React.FC = () => {
     return <Badge variant="neutral">{status}</Badge>;
   };
 
+  const filterSelectStyle: React.CSSProperties = {
+    backgroundColor: 'var(--bg-subtle)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 'var(--radius-md)',
+    padding: '8px 12px',
+    color: 'var(--text-primary)',
+    fontSize: '0.8125rem',
+    outline: 'none',
+  };
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '270px 1fr', gap: '20px', alignItems: 'start' }}>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '250px minmax(0, 1fr)',
+        gap: '20px',
+        alignItems: 'start',
+        width: '100%',
+      }}
+    >
       {/* 1. Left Sidebar: Folder / Module Hierarchy */}
       <Card padding="md" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -403,8 +508,8 @@ export const TestCasesPage: React.FC = () => {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <FolderInput size={14} color="#94a3b8" />
-              <span>[ Unassigned Cases ]</span>
+              <FolderInput size={14} color="var(--text-muted)" />
+              <span>Unassigned Cases</span>
             </div>
           </button>
 
@@ -459,7 +564,7 @@ export const TestCasesPage: React.FC = () => {
       </Card>
 
       {/* 2. Right Pane: Test Cases Table & Governance Actions */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
         {/* Controls Row */}
         <div
           style={{
@@ -467,14 +572,14 @@ export const TestCasesPage: React.FC = () => {
             justifyContent: 'space-between',
             alignItems: 'center',
             flexWrap: 'wrap',
-            gap: '12px',
+            gap: '10px',
           }}
         >
           {/* Search & Filters */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '320px', flexWrap: 'wrap' }}>
-            <div style={{ flex: '1 1 200px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 300px', flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 180px', minWidth: '160px' }}>
               <Input
-                placeholder="Search by ID, title, tags, preconditions..."
+                placeholder="Search test cases..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 leftIcon={<Search size={15} />}
@@ -485,15 +590,7 @@ export const TestCasesPage: React.FC = () => {
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              style={{
-                backgroundColor: 'var(--bg-subtle)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                padding: '8px 12px',
-                color: 'var(--text-primary)',
-                fontSize: '0.8125rem',
-                outline: 'none',
-              }}
+              style={filterSelectStyle}
             >
               <option value="">All Types</option>
               {TEST_TYPES.map((t) => (
@@ -507,15 +604,7 @@ export const TestCasesPage: React.FC = () => {
             <select
               value={reviewStatusFilter}
               onChange={(e) => setReviewStatusFilter(e.target.value as any)}
-              style={{
-                backgroundColor: 'var(--bg-subtle)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                padding: '8px 12px',
-                color: 'var(--text-primary)',
-                fontSize: '0.8125rem',
-                outline: 'none',
-              }}
+              style={filterSelectStyle}
             >
               <option value="">All Review Statuses</option>
               <option value="APPROVED">✓ Approved</option>
@@ -529,15 +618,7 @@ export const TestCasesPage: React.FC = () => {
             <select
               value={severityFilter}
               onChange={(e) => setSeverityFilter(e.target.value as any)}
-              style={{
-                backgroundColor: 'var(--bg-subtle)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                padding: '8px 12px',
-                color: 'var(--text-primary)',
-                fontSize: '0.8125rem',
-                outline: 'none',
-              }}
+              style={filterSelectStyle}
             >
               <option value="">All Severities</option>
               <option value="CRITICAL">💥 Critical</option>
@@ -550,15 +631,7 @@ export const TestCasesPage: React.FC = () => {
             <select
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value as any)}
-              style={{
-                backgroundColor: 'var(--bg-subtle)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
-                padding: '8px 12px',
-                color: 'var(--text-primary)',
-                fontSize: '0.8125rem',
-                outline: 'none',
-              }}
+              style={filterSelectStyle}
             >
               <option value="">All Priorities</option>
               <option value="CRITICAL">Critical</option>
@@ -583,19 +656,42 @@ export const TestCasesPage: React.FC = () => {
 
         {/* Bulk Actions Floating Bar */}
         {selectedCaseIds.length > 0 && (
-          <div className="p-3 rounded-xl bg-indigo-950/80 border border-indigo-500/40 flex items-center justify-between gap-4 animate-in fade-in">
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-indigo-200 bg-indigo-500/20 px-2.5 py-1 rounded-md border border-indigo-500/30">
+          <div
+            style={{
+              padding: '12px 16px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexWrap: 'wrap',
+              boxShadow: 'var(--shadow-md)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span
+                style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  color: '#818cf8',
+                  backgroundColor: 'rgba(79, 70, 229, 0.15)',
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid rgba(79, 70, 229, 0.3)',
+                }}
+              >
                 {selectedCaseIds.length} Cases Selected
               </span>
-              <span className="text-xs text-slate-300">Bulk Actions:</span>
+              <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>Bulk Actions:</span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <select
                 value={bulkTargetModuleId}
                 onChange={(e) => setBulkTargetModuleId(e.target.value)}
-                className="px-3 py-1.5 rounded-lg bg-slate-900 border border-indigo-500/30 text-slate-100 text-xs focus:outline-none"
+                style={filterSelectStyle}
               >
                 <option value="">-- Choose Target Folder --</option>
                 <option value="unassigned">[ Unassign / Root ]</option>
@@ -606,65 +702,67 @@ export const TestCasesPage: React.FC = () => {
                 ))}
               </select>
 
-              <button
+              <Button
                 type="button"
+                variant="primary"
+                size="sm"
                 disabled={isBulkMoving || !bulkTargetModuleId}
                 onClick={handleBulkMove}
-                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md transition-all disabled:opacity-50"
+                leftIcon={<FolderCheck size={14} />}
               >
-                <FolderCheck className="w-3.5 h-3.5" />
                 {isBulkMoving ? 'Moving...' : 'Move to Folder'}
-              </button>
+              </Button>
 
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="sm"
                 onClick={() => setSelectedCaseIds([])}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium"
               >
                 Clear Selection
-              </button>
+              </Button>
             </div>
           </div>
         )}
 
         {/* Test Cases Table */}
-        <Card padding="none" style={{ overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8125rem' }}>
+        <Card padding="none" style={{ overflow: 'hidden', width: '100%' }}>
+          <div style={{ overflowX: 'auto', width: '100%' }}>
+            <table style={{ width: '100%', minWidth: '920px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8125rem' }}>
               <thead>
                 <tr
                   style={{
                     backgroundColor: 'var(--bg-subtle)',
                     borderBottom: '1px solid var(--border-subtle)',
                     color: 'var(--text-muted)',
-                    fontSize: '0.75rem',
+                    fontSize: '0.6875rem',
                     textTransform: 'uppercase',
                     letterSpacing: '0.04em',
                   }}
                 >
-                  <th style={{ padding: '12px 14px', width: '40px', textAlign: 'center' }}>
+                  <th style={{ padding: '10px 12px', width: '36px', textAlign: 'center' }}>
                     <button
                       type="button"
                       onClick={handleToggleSelectAll}
-                      className="text-slate-400 hover:text-slate-200"
+                      style={{ color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     >
                       {selectedCaseIds.length > 0 && selectedCaseIds.length === testCases.length ? (
-                        <CheckSquare className="w-4 h-4 text-indigo-400" />
+                        <CheckSquare size={16} color="var(--primary)" />
                       ) : (
-                        <Square className="w-4 h-4" />
+                        <Square size={16} />
                       )}
                     </button>
                   </th>
-                  <th style={{ padding: '12px 14px', width: '120px' }}>ID</th>
-                  <th style={{ padding: '12px 16px' }}>Title & Governance</th>
-                  <th style={{ padding: '12px 14px', width: '100px' }}>Type</th>
-                  <th style={{ padding: '12px 14px', width: '120px' }}>Folder</th>
-                  <th style={{ padding: '12px 14px', width: '90px' }}>Severity</th>
-                  <th style={{ padding: '12px 14px', width: '85px' }}>Priority</th>
-                  <th style={{ padding: '12px 14px', width: '110px' }}>Review</th>
-                  <th style={{ padding: '12px 14px', width: '65px' }}>Steps</th>
-                  <th style={{ padding: '12px 14px', width: '95px' }}>Last Run</th>
-                  <th style={{ padding: '12px 14px', width: '80px', textAlign: 'right' }}>Action</th>
+                  <th style={{ padding: '10px 12px', width: '95px' }}>ID</th>
+                  <th style={{ padding: '10px 14px', minWidth: '220px' }}>Title & Scope</th>
+                  <th style={{ padding: '10px 12px', width: '85px' }}>Type</th>
+                  <th style={{ padding: '10px 12px', width: '110px' }}>Folder</th>
+                  <th style={{ padding: '10px 12px', width: '85px' }}>Severity</th>
+                  <th style={{ padding: '10px 12px', width: '80px' }}>Priority</th>
+                  <th style={{ padding: '10px 12px', width: '105px' }}>Review</th>
+                  <th style={{ padding: '10px 12px', width: '50px', textAlign: 'center' }}>Steps</th>
+                  <th style={{ padding: '10px 12px', width: '90px' }}>Last Run</th>
+                  <th style={{ padding: '10px 12px', width: '65px', textAlign: 'right' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -685,30 +783,32 @@ export const TestCasesPage: React.FC = () => {
                       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = isSelected ? 'rgba(79, 70, 229, 0.08)' : 'transparent')}
                     >
                       {/* Checkbox */}
-                      <td style={{ padding: '14px', textAlign: 'center' }}>
+                      <td style={{ padding: '12px', textAlign: 'center' }}>
                         <button
                           type="button"
                           onClick={(e) => handleToggleSelectCase(e, tc.id)}
-                          className="text-slate-400 hover:text-slate-200"
+                          style={{ color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         >
                           {isSelected ? (
-                            <CheckSquare className="w-4 h-4 text-indigo-400" />
+                            <CheckSquare size={16} color="var(--primary)" />
                           ) : (
-                            <Square className="w-4 h-4" />
+                            <Square size={16} />
                           )}
                         </button>
                       </td>
 
                       {/* Case Key */}
-                      <td style={{ padding: '14px', fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--primary)' }}>
+                      <td style={{ padding: '12px', fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--primary)' }}>
                         {tc.key}
                       </td>
 
                       {/* Title & Metadata */}
-                      <td style={{ padding: '14px 16px' }}>
-                        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{tc.title}</div>
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>
+                          {tc.title}
+                        </div>
                         {tc.preconditions && (
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '340px' }}>
                             Pre: {tc.preconditions}
                           </div>
                         )}
@@ -718,8 +818,8 @@ export const TestCasesPage: React.FC = () => {
                               <span
                                 key={tg}
                                 style={{
-                                  fontSize: '0.6875rem',
-                                  padding: '1px 6px',
+                                  fontSize: '0.625rem',
+                                  padding: '1px 5px',
                                   borderRadius: 'var(--radius-sm)',
                                   backgroundColor: 'rgba(255, 255, 255, 0.05)',
                                   color: 'var(--text-muted)',
@@ -734,12 +834,12 @@ export const TestCasesPage: React.FC = () => {
                       </td>
 
                       {/* Test Type */}
-                      <td style={{ padding: '14px' }}>
+                      <td style={{ padding: '12px' }}>
                         <span
                           style={{
-                            fontSize: '0.6875rem',
+                            fontSize: '0.625rem',
                             fontWeight: 700,
-                            padding: '2px 8px',
+                            padding: '2px 7px',
                             borderRadius: 'var(--radius-sm)',
                             color: getTypeBadgeColor(tc.test_type),
                             backgroundColor: 'rgba(255, 255, 255, 0.05)',
@@ -751,44 +851,44 @@ export const TestCasesPage: React.FC = () => {
                       </td>
 
                       {/* Module / Folder */}
-                      <td style={{ padding: '14px', color: 'var(--text-secondary)' }}>
+                      <td style={{ padding: '12px', color: 'var(--text-secondary)' }}>
                         {tc.module_name ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100px' }} title={tc.module_name}>
                             <Folder size={12} color="var(--text-muted)" />
                             {tc.module_name}
                           </span>
                         ) : (
-                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>[ Unassigned ]</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.6875rem' }}>[ Unassigned ]</span>
                         )}
                       </td>
 
                       {/* Severity */}
-                      <td style={{ padding: '14px' }}>
+                      <td style={{ padding: '12px' }}>
                         {getSeverityBadge(tc.severity)}
                       </td>
 
                       {/* Priority */}
-                      <td style={{ padding: '14px' }}>
-                        <Badge variant={getPriorityBadgeVariant(tc.priority)}>{tc.priority}</Badge>
+                      <td style={{ padding: '12px' }}>
+                        <Badge variant={getPriorityBadgeVariant(tc.priority)} size="sm">{tc.priority}</Badge>
                       </td>
 
                       {/* Review Governance Status */}
-                      <td style={{ padding: '14px' }}>
+                      <td style={{ padding: '12px' }}>
                         {getReviewStatusBadge(tc.review_status)}
                       </td>
 
                       {/* Step Count */}
-                      <td style={{ padding: '14px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                      <td style={{ padding: '12px', textAlign: 'center', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
                         {tc.step_count}
                       </td>
 
                       {/* Last Execution */}
-                      <td style={{ padding: '14px' }}>
+                      <td style={{ padding: '12px' }}>
                         {getExecutionBadge(tc.last_execution_status)}
                       </td>
 
                       {/* Actions */}
-                      <td style={{ padding: '14px', textAlign: 'right' }}>
+                      <td style={{ padding: '12px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px' }}>
                           <button
                             type="button"

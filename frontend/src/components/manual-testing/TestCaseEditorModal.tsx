@@ -14,6 +14,10 @@ import {
   UserCheck,
   Maximize2,
   Minimize2,
+  FolderDot,
+  Flame,
+  AlertTriangle,
+  ListOrdered,
 } from 'lucide-react';
 import type {
   TestCase,
@@ -29,6 +33,8 @@ import type {
 } from '../../types';
 import { workspaceApi } from '../../services/workspaceApi';
 import { useWorkspace } from '../../context/WorkspaceContext';
+import { Button } from '../common/Button';
+import { Input } from '../common/Input';
 
 interface TestCaseEditorModalProps {
   isOpen: boolean;
@@ -38,6 +44,21 @@ interface TestCaseEditorModalProps {
   modules: TestModule[];
   defaultModuleId?: string | null;
 }
+
+const TEST_TYPES: TestCaseType[] = [
+  'FUNCTIONAL',
+  'SMOKE',
+  'SANITY',
+  'REGRESSION',
+  'INTEGRATION',
+  'UI',
+  'API',
+  'NEGATIVE',
+  'EDGE_CASE',
+];
+
+const PRIORITIES: TestCasePriority[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+const SEVERITIES: TestCaseSeverity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
 export const TestCaseEditorModal: React.FC<TestCaseEditorModalProps> = ({
   isOpen,
@@ -101,7 +122,7 @@ export const TestCaseEditorModal: React.FC<TestCaseEditorModalProps> = ({
       setExpectedResult(initialData.expected_result || '');
       setEstimatedDurationMinutes(initialData.estimated_duration_minutes || '');
       if (initialData.steps && initialData.steps.length > 0) {
-        setSteps(initialData.steps.map(s => ({ ...s })));
+        setSteps(initialData.steps.map((s) => ({ ...s })));
       } else {
         setSteps([{ step_number: 1, action: '', expected_result: '', test_data: '' }]);
       }
@@ -137,7 +158,7 @@ export const TestCaseEditorModal: React.FC<TestCaseEditorModalProps> = ({
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter(t => t !== tagToRemove));
+    setTags(tags.filter((t) => t !== tagToRemove));
   };
 
   // Step management
@@ -190,7 +211,7 @@ export const TestCaseEditorModal: React.FC<TestCaseEditorModalProps> = ({
         test_data: testData.trim() || undefined,
         expected_result: expectedResult.trim() || undefined,
         estimated_duration_minutes: estimatedDurationMinutes ? Number(estimatedDurationMinutes) : undefined,
-        steps: templateType === 'STANDARD' ? steps.filter(s => s.action.trim()) : [],
+        steps: templateType === 'STANDARD' ? steps.filter((s) => s.action.trim()) : [],
       };
 
       await onSave(payload, submitForReview, reviewerId);
@@ -203,108 +224,220 @@ export const TestCaseEditorModal: React.FC<TestCaseEditorModalProps> = ({
     }
   };
 
+  const selectStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '9px 12px',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--bg-input)',
+    border: '1px solid var(--border-subtle)',
+    color: 'var(--text-primary)',
+    fontSize: '0.8125rem',
+    outline: 'none',
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: 'var(--text-secondary)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    marginBottom: '6px',
+  };
+
+  const textareaStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '10px 12px',
+    backgroundColor: 'var(--bg-input)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 'var(--radius-md)',
+    color: 'var(--text-primary)',
+    fontSize: '0.8125rem',
+    outline: 'none',
+    resize: 'vertical',
+  };
+
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center ${isMaximized ? 'p-0' : 'p-2 sm:p-4 md:p-6'} bg-slate-950/85 backdrop-blur-md animate-in fade-in overflow-y-auto`}>
-      <div className={`relative w-full ${isMaximized ? 'h-full max-w-none max-h-none rounded-none' : 'max-w-5xl rounded-2xl max-h-[94vh]'} border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden flex flex-col transition-all duration-200`}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 sm:px-8 py-4 sm:py-5 border-b border-slate-800 bg-slate-900/90 sticky top-0 z-10">
-          <div className="flex items-center gap-3.5">
-            <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-              <FileCode className="w-6 h-6" />
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(5, 7, 12, 0.85)',
+        backdropFilter: 'blur(6px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: isMaximized ? '0' : '16px',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: isMaximized ? '100vw' : '1080px',
+          height: isMaximized ? '100vh' : 'auto',
+          maxHeight: isMaximized ? '100vh' : '92vh',
+          backgroundColor: 'var(--bg-card)',
+          border: isMaximized ? 'none' : '1px solid var(--border-strong)',
+          borderRadius: isMaximized ? '0' : 'var(--radius-lg)',
+          boxShadow: 'var(--shadow-lg)',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          transition: 'all var(--transition-fast)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Sticky Header */}
+        <div
+          style={{
+            padding: '16px 24px',
+            borderBottom: '1px solid var(--border-subtle)',
+            backgroundColor: 'var(--bg-card)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'rgba(79, 70, 229, 0.15)',
+                color: 'var(--primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <FileCode size={20} />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2.5 flex-wrap">
-                {initialData ? `Edit Test Case: ${initialData.key}` : 'Create New Test Case'}
-                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
-                    reviewStatus === 'APPROVED'
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                      : reviewStatus === 'IN_REVIEW'
-                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-                      : reviewStatus === 'CHANGES_REQUESTED' || reviewStatus === 'REJECTED'
-                      ? 'bg-rose-500/10 border-rose-500/30 text-rose-400'
-                      : 'bg-slate-800 border-slate-700 text-slate-400'
-                  }`}>
-                    {reviewStatus}
-                  </span>
-              </h2>
-              <p className="text-xs text-slate-400">Structured Quality Validation & Execution Specification</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <h2 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {initialData ? `Edit Test Case: ${initialData.key}` : 'Create New Test Case'}
+                </h2>
+                <span
+                  style={{
+                    fontSize: '0.6875rem',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor:
+                      reviewStatus === 'APPROVED'
+                        ? 'var(--status-pass-bg)'
+                        : reviewStatus === 'IN_REVIEW'
+                        ? 'var(--status-blocked-bg)'
+                        : reviewStatus === 'CHANGES_REQUESTED' || reviewStatus === 'REJECTED'
+                        ? 'var(--status-fail-bg)'
+                        : 'var(--bg-subtle)',
+                    color:
+                      reviewStatus === 'APPROVED'
+                        ? 'var(--status-pass)'
+                        : reviewStatus === 'IN_REVIEW'
+                        ? 'var(--status-blocked)'
+                        : reviewStatus === 'CHANGES_REQUESTED' || reviewStatus === 'REJECTED'
+                        ? 'var(--status-fail)'
+                        : 'var(--text-muted)',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  {reviewStatus}
+                </span>
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Structured Quality Validation & Execution Specification
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
               type="button"
               onClick={() => setIsMaximized(!isMaximized)}
-              title={isMaximized ? 'Restore window' : 'Maximize window'}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+              title={isMaximized ? 'Restore normal window' : 'Maximize window'}
+              style={{
+                padding: '6px',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-muted)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
             >
-              {isMaximized ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+              {isMaximized ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+              style={{
+                padding: '6px',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-muted)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
             >
-              <X className="w-5 h-5" />
+              <X size={18} />
             </button>
           </div>
         </div>
 
         {/* Scrollable Form Body */}
-        <div className="p-8 overflow-y-auto flex-1 space-y-8">
-          {/* Section 1: Title & Template */}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                Test Case Title <span className="text-rose-400">*</span>
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Verify user login with valid email & password"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-base font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                required
-              />
-            </div>
+        <div style={{ padding: '24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Section 1: Title & Description */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <Input
+              label="Test Case Title"
+              placeholder="e.g. Verify user authentication with valid OAuth credentials"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              autoFocus
+            />
 
-            <div className="flex items-center gap-4">
-              <span className="text-xs font-semibold text-slate-400">Template Style:</span>
-              <button
-                type="button"
-                onClick={() => setTemplateType('STANDARD')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                  templateType === 'STANDARD'
-                    ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-300 shadow-sm'
-                    : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Standard (Step-by-Step)
-              </button>
-              <button
-                type="button"
-                onClick={() => setTemplateType('SIMPLE')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                  templateType === 'SIMPLE'
-                    ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-300 shadow-sm'
-                    : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Simple / Exploratory
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Description (Optional)</label>
+              <textarea
+                rows={2}
+                placeholder="High-level test objective, coverage scope, or context..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                style={textareaStyle}
+              />
             </div>
           </div>
 
           {/* Section 2: Metadata Grid */}
-          <div className="p-5 rounded-2xl bg-slate-950/60 border border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-            {/* Module / Folder */}
+          <div
+            style={{
+              padding: '16px',
+              backgroundColor: 'var(--bg-subtle)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-subtle)',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+              gap: '14px',
+            }}
+          >
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Module / Folder
+              <label style={labelStyle}>
+                <FolderDot size={13} color="var(--primary)" />
+                Folder / Module
               </label>
               <select
                 value={moduleId || ''}
-                onChange={(e) => setModuleId(e.target.value ? e.target.value : null)}
-                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                onChange={(e) => setModuleId(e.target.value || null)}
+                style={selectStyle}
               >
                 <option value="">[ Unassigned Cases ]</option>
                 {modules.map((m) => (
@@ -315,306 +448,347 @@ export const TestCaseEditorModal: React.FC<TestCaseEditorModalProps> = ({
               </select>
             </div>
 
-            {/* Test Type */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Test Type
+              <label style={labelStyle}>
+                <Layers size={13} color="var(--primary)" />
+                Template Type
               </label>
+              <select
+                value={templateType}
+                onChange={(e) => setTemplateType(e.target.value as TestCaseTemplate)}
+                style={selectStyle}
+              >
+                <option value="STANDARD">Step-by-Step (Standard)</option>
+                <option value="SIMPLE">Free-form Text (Simple)</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Test Type</label>
               <select
                 value={testType}
                 onChange={(e) => setTestType(e.target.value as TestCaseType)}
-                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                style={selectStyle}
               >
-                <option value="FUNCTIONAL">Functional</option>
-                <option value="SMOKE">Smoke</option>
-                <option value="SANITY">Sanity</option>
-                <option value="REGRESSION">Regression</option>
-                <option value="INTEGRATION">Integration</option>
-                <option value="UI">UI / Visual</option>
-                <option value="API">API / Backend</option>
-                <option value="NEGATIVE">Negative Test</option>
-                <option value="EDGE_CASE">Edge Case</option>
+                {TEST_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
               </select>
             </div>
 
-            {/* Priority */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Execution Priority
-              </label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as TestCasePriority)}
-                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              >
-                <option value="CRITICAL">🔴 Critical</option>
-                <option value="HIGH">🟠 High</option>
-                <option value="MEDIUM">🟡 Medium</option>
-                <option value="LOW">⚪ Low</option>
-              </select>
-            </div>
-
-            {/* Severity */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Impact Severity
+              <label style={labelStyle}>
+                <Flame size={13} color="var(--status-fail)" />
+                Severity (Impact)
               </label>
               <select
                 value={severity}
                 onChange={(e) => setSeverity(e.target.value as TestCaseSeverity)}
-                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                style={selectStyle}
               >
-                <option value="CRITICAL">💥 Critical Impact</option>
-                <option value="HIGH">🔥 High Impact</option>
-                <option value="MEDIUM">⚡ Medium Impact</option>
-                <option value="LOW">🌱 Low Impact</option>
+                {SEVERITIES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
               </select>
             </div>
 
-            {/* Status */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Lifecycle Status
+              <label style={labelStyle}>
+                <AlertTriangle size={13} color="var(--status-blocked)" />
+                Priority (Urgency)
               </label>
               <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as TestCaseStatus)}
-                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as TestCasePriority)}
+                style={selectStyle}
               >
-                <option value="ACTIVE">Active</option>
-                <option value="DRAFT">Draft</option>
-                <option value="DEPRECATED">Deprecated</option>
+                {PRIORITIES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
               </select>
-            </div>
-          </div>
-
-          {/* Section 3: Tags & Duration */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2 space-y-2">
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-indigo-400" />
-                Tags / Labels
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="e.g. Auth, Checkout, v1.2"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
-                  className="flex-1 px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 text-xs focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddTag}
-                  className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold"
-                >
-                  Add
-                </button>
-              </div>
-              {tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {tags.map((t) => (
-                    <span
-                      key={t}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs"
-                    >
-                      {t}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveTag(t)}
-                        className="text-indigo-400 hover:text-rose-400"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                Est. Duration (mins)
+              <label style={labelStyle}>
+                <Clock size={13} color="var(--text-muted)" />
+                Est. Minutes
               </label>
               <input
                 type="number"
                 min={1}
-                placeholder="10"
+                max={480}
                 value={estimatedDurationMinutes}
-                onChange={(e) => setEstimatedDurationMinutes(e.target.value === '' ? '' : Number(e.target.value))}
-                className="w-full px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-100 text-xs focus:outline-none"
+                onChange={(e) => setEstimatedDurationMinutes(e.target.value ? Number(e.target.value) : '')}
+                style={selectStyle}
               />
             </div>
           </div>
 
-          {/* Section 4: Preconditions, Description, Global Test Data */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Section 3: Preconditions & Global Test Data */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                Preconditions
-              </label>
+              <label style={labelStyle}>Preconditions</label>
               <textarea
                 rows={2}
-                placeholder="Prerequisites needed before test execution starts..."
+                placeholder="e.g. User is logged in, feature flag 'v2_checkout' is enabled..."
                 value={preconditions}
                 onChange={(e) => setPreconditions(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-xs focus:outline-none resize-none"
+                style={textareaStyle}
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                Global Test Data / Credentials
-              </label>
+              <label style={labelStyle}>Global Test Data</label>
               <textarea
                 rows={2}
-                placeholder="e.g. Test user credentials, mock payment tokens..."
+                placeholder="e.g. Email: qa-test@lumen.qa | Card: 4111-2222-3333-4444"
                 value={testData}
                 onChange={(e) => setTestData(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-xs focus:outline-none resize-none"
+                style={{ ...textareaStyle, fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}
               />
             </div>
           </div>
 
-          {/* Section 5: Step Builder (Standard Template) */}
+          {/* Section 4: Tags */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={labelStyle}>
+              <Tag size={13} color="var(--text-muted)" />
+              Tags & Labels
+            </label>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                type="text"
+                placeholder="Type tag name and press Enter..."
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddTag();
+                  }
+                }}
+                style={{ ...selectStyle, maxWidth: '280px' }}
+              />
+              <Button type="button" variant="secondary" size="sm" onClick={handleAddTag}>
+                Add Tag
+              </Button>
+            </div>
+
+            {tags.length > 0 && (
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                {tags.map((t) => (
+                  <span
+                    key={t}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '3px 8px',
+                      borderRadius: 'var(--radius-sm)',
+                      backgroundColor: 'var(--bg-subtle)',
+                      border: '1px solid var(--border-subtle)',
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    #{t}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTag(t)}
+                      style={{ color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Section 5: Step Editor (Standard) vs Free-form Expected Result (Simple) */}
           {templateType === 'STANDARD' ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-indigo-400" />
-                  Test Execution Steps ({steps.length})
-                </h3>
-                <button
-                  type="button"
-                  onClick={handleAddStep}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 text-xs font-semibold transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ListOrdered size={16} color="var(--primary)" />
+                  <h3 style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Test Steps & Data ({steps.length})
+                  </h3>
+                </div>
+                <Button type="button" variant="secondary" size="sm" onClick={handleAddStep} leftIcon={<Plus size={13} />}>
                   Add Step
-                </button>
+                </Button>
               </div>
 
-              <div className="space-y-3">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {steps.map((step, idx) => (
                   <div
                     key={idx}
-                    className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-3 relative group"
+                    style={{
+                      padding: '12px 14px',
+                      backgroundColor: 'var(--bg-subtle)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-subtle)',
+                      display: 'grid',
+                      gridTemplateColumns: '40px 1.4fr 1fr 1.4fr 70px',
+                      gap: '10px',
+                      alignItems: 'start',
+                    }}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-indigo-400 bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-800/40">
-                        Step {idx + 1}
+                    {/* Step Number & Reordering */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', paddingTop: '4px' }}>
+                      <span style={{ fontSize: '0.8125rem', fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>
+                        #{step.step_number}
                       </span>
-                      <div className="flex items-center gap-1">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <button
                           type="button"
                           disabled={idx === 0}
                           onClick={() => handleMoveStep(idx, 'up')}
-                          className="p-1 text-slate-400 hover:text-slate-200 disabled:opacity-30"
-                          title="Move Step Up"
+                          style={{ color: idx === 0 ? 'var(--border-strong)' : 'var(--text-muted)', cursor: idx === 0 ? 'default' : 'pointer' }}
+                          title="Move step up"
                         >
-                          <ArrowUp className="w-3.5 h-3.5" />
+                          <ArrowUp size={12} />
                         </button>
                         <button
                           type="button"
                           disabled={idx === steps.length - 1}
                           onClick={() => handleMoveStep(idx, 'down')}
-                          className="p-1 text-slate-400 hover:text-slate-200 disabled:opacity-30"
-                          title="Move Step Down"
+                          style={{ color: idx === steps.length - 1 ? 'var(--border-strong)' : 'var(--text-muted)', cursor: idx === steps.length - 1 ? 'default' : 'pointer' }}
+                          title="Move step down"
                         >
-                          <ArrowDown className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={steps.length === 1}
-                          onClick={() => handleRemoveStep(idx)}
-                          className="p-1 text-slate-400 hover:text-rose-400 disabled:opacity-30 ml-2"
-                          title="Delete Step"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <ArrowDown size={12} />
                         </button>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                          Step Action <span className="text-rose-400">*</span>
-                        </label>
-                        <textarea
-                          rows={2}
-                          placeholder="e.g. Enter valid password and click 'Sign In'..."
-                          value={step.action}
-                          onChange={(e) => handleStepChange(idx, 'action', e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-xs focus:outline-none resize-none"
-                          required
-                        />
-                      </div>
+                    {/* Action */}
+                    <div>
+                      <label style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '2px', display: 'block' }}>
+                        Step Action
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder="Action to perform..."
+                        value={step.action}
+                        onChange={(e) => handleStepChange(idx, 'action', e.target.value)}
+                        style={{ ...textareaStyle, fontSize: '0.8125rem', padding: '6px 8px' }}
+                        required
+                      />
+                    </div>
 
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                          Step Test Data (Optional)
-                        </label>
-                        <textarea
-                          rows={2}
-                          placeholder="Specific input value for this step..."
-                          value={step.test_data || ''}
-                          onChange={(e) => handleStepChange(idx, 'test_data', e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-xs focus:outline-none resize-none"
-                        />
-                      </div>
+                    {/* Step Test Data */}
+                    <div>
+                      <label style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '2px', display: 'block' }}>
+                        Step Test Data
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder="e.g. payload: {id: 123}"
+                        value={step.test_data || ''}
+                        onChange={(e) => handleStepChange(idx, 'test_data', e.target.value)}
+                        style={{ ...textareaStyle, fontSize: '0.75rem', padding: '6px 8px', fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}
+                      />
+                    </div>
 
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                          Expected Result <span className="text-rose-400">*</span>
-                        </label>
-                        <textarea
-                          rows={2}
-                          placeholder="e.g. Dashboard loads with session active..."
-                          value={step.expected_result}
-                          onChange={(e) => handleStepChange(idx, 'expected_result', e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-xs focus:outline-none resize-none"
-                          required
-                        />
-                      </div>
+                    {/* Expected Result */}
+                    <div>
+                      <label style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '2px', display: 'block' }}>
+                        Expected Result
+                      </label>
+                      <textarea
+                        rows={2}
+                        placeholder="Expected behavior / UI state..."
+                        value={step.expected_result}
+                        onChange={(e) => handleStepChange(idx, 'expected_result', e.target.value)}
+                        style={{ ...textareaStyle, fontSize: '0.8125rem', padding: '6px 8px' }}
+                        required
+                      />
+                    </div>
+
+                    {/* Delete button */}
+                    <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '18px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveStep(idx)}
+                        disabled={steps.length === 1}
+                        style={{
+                          padding: '6px',
+                          color: steps.length === 1 ? 'var(--border-strong)' : 'var(--status-fail)',
+                          cursor: steps.length === 1 ? 'not-allowed' : 'pointer',
+                        }}
+                        title="Delete step"
+                      >
+                        <Trash2 size={15} />
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
           ) : (
-            <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                Expected Overall Outcome <span className="text-rose-400">*</span>
-              </label>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <label style={labelStyle}>Expected Outcome / Acceptance Criteria</label>
               <textarea
                 rows={4}
-                placeholder="Describe the expected overall behaviour or verification condition..."
+                placeholder="Describe the overall expected outcome..."
                 value={expectedResult}
                 onChange={(e) => setExpectedResult(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-xs focus:outline-none resize-none"
+                style={textareaStyle}
                 required
               />
             </div>
           )}
 
           {/* Section 6: Governance Review Assignment */}
-          <div className="p-4 rounded-xl bg-indigo-950/20 border border-indigo-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400">
-                <UserCheck className="w-5 h-5" />
+          <div
+            style={{
+              padding: '16px',
+              backgroundColor: 'var(--bg-subtle)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-subtle)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '16px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'rgba(79, 70, 229, 0.15)',
+                  color: 'var(--primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <UserCheck size={16} />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Assigned Reviewer</h4>
-                <p className="text-[11px] text-slate-400">Designate a peer or QA Lead to review and approve this test case.</p>
+                <h4 style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Assigned Reviewer
+                </h4>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Designate a teammate or QA Lead to review and approve this specification.
+                </p>
               </div>
             </div>
 
             <select
               value={reviewerId || ''}
               onChange={(e) => setReviewerId(e.target.value || null)}
-              className="px-3.5 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-xs focus:outline-none min-w-[200px]"
+              style={{ ...selectStyle, maxWidth: '240px' }}
             >
               <option value="">-- No Reviewer Assigned --</option>
               {members.map((m) => (
@@ -626,36 +800,42 @@ export const TestCaseEditorModal: React.FC<TestCaseEditorModalProps> = ({
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between px-8 py-4 border-t border-slate-800 bg-slate-900/90 sticky bottom-0 z-10">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-5 py-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-slate-800 text-sm font-medium transition-colors"
-          >
+        {/* Sticky Footer */}
+        <div
+          style={{
+            padding: '14px 24px',
+            borderTop: '1px solid var(--border-subtle)',
+            backgroundColor: 'var(--bg-card)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+          }}
+        >
+          <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>
             Cancel
-          </button>
+          </Button>
 
-          <div className="flex items-center gap-3">
-            <button
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Button
               type="button"
-              disabled={isSubmitting}
+              variant="secondary"
+              isLoading={isSubmitting}
               onClick={() => handleSubmit(false)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium transition-colors disabled:opacity-50"
+              leftIcon={<Save size={14} />}
             >
-              <Save className="w-4 h-4" />
               Save as Draft
-            </button>
+            </Button>
 
-            <button
+            <Button
               type="button"
-              disabled={isSubmitting}
+              variant="primary"
+              isLoading={isSubmitting}
               onClick={() => handleSubmit(true)}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-lg shadow-indigo-600/25 transition-all disabled:opacity-50"
+              leftIcon={<Send size={14} />}
             >
-              <Send className="w-4 h-4" />
               {initialData ? 'Save & Submit Review' : 'Create & Submit Review'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

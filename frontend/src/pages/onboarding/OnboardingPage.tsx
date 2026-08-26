@@ -11,6 +11,8 @@ import {
   Sparkles,
   Key,
   Globe,
+  ArrowLeft,
+  AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useOrganization } from '../../context/OrganizationContext';
@@ -171,6 +173,18 @@ export const OnboardingPage: React.FC = () => {
     }
   };
 
+  const selectStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '10px 14px',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--bg-input)',
+    border: '1px solid var(--border-subtle)',
+    color: 'var(--text-primary)',
+    fontSize: '0.875rem',
+    outline: 'none',
+    transition: 'border-color var(--transition-fast)',
+  };
+
   return (
     <div
       style={{
@@ -180,7 +194,7 @@ export const OnboardingPage: React.FC = () => {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '24px',
+        padding: '24px 16px',
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -202,12 +216,12 @@ export const OnboardingPage: React.FC = () => {
       <div
         style={{
           width: '100%',
-          maxWidth: '580px',
+          maxWidth: '560px',
           backgroundColor: 'var(--bg-card)',
           border: '1px solid var(--border-strong)',
-          borderRadius: 'var(--radius-xl)',
+          borderRadius: 'var(--radius-lg)',
           padding: '36px',
-          boxShadow: 'var(--shadow-xl)',
+          boxShadow: 'var(--shadow-lg)',
           position: 'relative',
           zIndex: 10,
         }}
@@ -218,7 +232,7 @@ export const OnboardingPage: React.FC = () => {
             style={{
               width: '48px',
               height: '48px',
-              borderRadius: 'var(--radius-lg)',
+              borderRadius: 'var(--radius-md)',
               background: 'linear-gradient(135deg, #4f46e5, #06b6d4)',
               display: 'inline-flex',
               alignItems: 'center',
@@ -241,26 +255,48 @@ export const OnboardingPage: React.FC = () => {
             Welcome to LUMEN, {user?.full_name?.split(' ')[0] || 'Engineer'}!
           </h1>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-            Choose how you'd like to begin your quality testing workspace.
+            Choose how you'd like to initialize your software quality workspace.
           </p>
         </div>
 
         {/* Mode Toggle: Create Org vs Join with Code */}
-        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950/80 rounded-xl border border-slate-800 mb-6">
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '6px',
+            padding: '4px',
+            backgroundColor: 'var(--bg-subtle)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-subtle)',
+            marginBottom: '24px',
+          }}
+        >
           <button
             type="button"
             onClick={() => {
               setMode('create');
               setError(null);
             }}
-            className={`py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-              mode === 'create'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
+            style={{
+              padding: '10px 16px',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              transition: 'all var(--transition-fast)',
+              backgroundColor: mode === 'create' ? 'var(--primary)' : 'transparent',
+              color: mode === 'create' ? '#ffffff' : 'var(--text-secondary)',
+              boxShadow: mode === 'create' ? 'var(--shadow-glow)' : 'none',
+              border: 'none',
+              cursor: 'pointer',
+            }}
           >
-            <Building2 className="w-4 h-4" />
-            Create Organization
+            <Building2 size={16} />
+            <span>Create Organization</span>
           </button>
 
           <button
@@ -269,14 +305,25 @@ export const OnboardingPage: React.FC = () => {
               setMode('join');
               setError(null);
             }}
-            className={`py-2.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-              mode === 'join'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
+            style={{
+              padding: '10px 16px',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              transition: 'all var(--transition-fast)',
+              backgroundColor: mode === 'join' ? 'var(--primary)' : 'transparent',
+              color: mode === 'join' ? '#ffffff' : 'var(--text-secondary)',
+              boxShadow: mode === 'join' ? 'var(--shadow-glow)' : 'none',
+              border: 'none',
+              cursor: 'pointer',
+            }}
           >
-            <Key className="w-4 h-4" />
-            Join with Code
+            <Key size={16} />
+            <span>Join with Code</span>
           </button>
         </div>
 
@@ -284,15 +331,19 @@ export const OnboardingPage: React.FC = () => {
           <div
             style={{
               padding: '12px 16px',
-              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+              backgroundColor: 'var(--status-fail-bg)',
               border: '1px solid var(--status-fail)',
               borderRadius: 'var(--radius-md)',
               color: 'var(--status-fail)',
               fontSize: '0.875rem',
               marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
             }}
           >
-            {error}
+            <AlertCircle size={18} style={{ flexShrink: 0 }} />
+            <span>{error}</span>
           </div>
         )}
 
@@ -306,37 +357,37 @@ export const OnboardingPage: React.FC = () => {
                     padding: '12px 16px',
                     backgroundColor: 'rgba(6, 182, 212, 0.08)',
                     border: '1px solid rgba(6, 182, 212, 0.25)',
-                    borderRadius: 'var(--radius-lg)',
+                    borderRadius: 'var(--radius-md)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '12px',
                   }}
                 >
                   <ShieldCheck size={20} color="var(--accent-cyan)" />
-                  <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}>
+                  <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', lineHeight: 1.4 }}>
                     Creating an organization automatically grants you <strong>OWNER</strong> governance rights.
                   </div>
                 </div>
 
                 {/* Professional Title Selection */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <label
+                    style={{
+                      fontSize: '0.8125rem',
+                      fontWeight: 600,
+                      color: 'var(--text-secondary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                  >
                     <Briefcase size={15} color="var(--primary)" />
-                    Professional Title (e.g. QA Lead)
+                    Professional Title (Role)
                   </label>
                   <select
                     value={selectedTitle}
                     onChange={(e) => setSelectedTitle(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 'var(--radius-md)',
-                      backgroundColor: 'var(--bg-input)',
-                      border: '1px solid var(--border-strong)',
-                      color: 'var(--text-primary)',
-                      fontSize: '0.875rem',
-                      outline: 'none',
-                    }}
+                    style={selectStyle}
                   >
                     {PREDEFINED_TITLES.map((t) => (
                       <option key={t} value={t}>
@@ -348,7 +399,7 @@ export const OnboardingPage: React.FC = () => {
 
                 {selectedTitle === 'Other' && (
                   <Input
-                    label="Enter custom title"
+                    label="Custom Title"
                     value={customTitle}
                     onChange={(e) => setCustomTitle(e.target.value)}
                     placeholder="e.g. Lead Quality Architect"
@@ -357,36 +408,29 @@ export const OnboardingPage: React.FC = () => {
                 )}
 
                 {/* Organization Setup */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Globe size={15} color="var(--accent-cyan)" />
-                    Organization Name
-                  </label>
-                  <Input
-                    value={orgName}
-                    onChange={(e) => setOrgName(e.target.value)}
-                    placeholder="e.g. Acme Global Quality"
-                    required
-                  />
-                </div>
+                <Input
+                  label="Organization Name"
+                  leftIcon={<Globe size={15} color="var(--accent-cyan)" />}
+                  value={orgName}
+                  onChange={(e) => setOrgName(e.target.value)}
+                  placeholder="e.g. Acme Global Quality"
+                  required
+                />
 
                 {/* Initial Workspace Setup */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Building2 size={15} color="var(--primary)" />
-                    First Workspace Name
-                  </label>
-                  <Input
-                    value={workspaceName}
-                    onChange={(e) => setWorkspaceName(e.target.value)}
-                    placeholder="e.g. Core Engineering"
-                    required
-                  />
-                </div>
+                <Input
+                  label="First Workspace Name"
+                  leftIcon={<Building2 size={15} color="var(--primary)" />}
+                  value={workspaceName}
+                  onChange={(e) => setWorkspaceName(e.target.value)}
+                  placeholder="e.g. Core Engineering"
+                  required
+                />
 
                 <Button
                   type="button"
                   variant="primary"
+                  size="lg"
                   onClick={() => {
                     if (!orgName.trim()) {
                       setError('Please provide an organization name.');
@@ -399,10 +443,10 @@ export const OnboardingPage: React.FC = () => {
                     setError(null);
                     setStep(2);
                   }}
+                  rightIcon={<ArrowRight size={16} />}
                   style={{ width: '100%', marginTop: '6px' }}
                 >
-                  <span>Continue to Project Setup</span>
-                  <ArrowRight size={16} />
+                  Continue to Project Setup
                 </Button>
               </div>
             ) : (
@@ -412,61 +456,56 @@ export const OnboardingPage: React.FC = () => {
                     padding: '12px 16px',
                     backgroundColor: 'rgba(79, 70, 229, 0.08)',
                     border: '1px solid rgba(79, 70, 229, 0.25)',
-                    borderRadius: 'var(--radius-lg)',
+                    borderRadius: 'var(--radius-md)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '12px',
                   }}
                 >
                   <Sparkles size={20} color="var(--primary)" />
-                  <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}>
-                    Setting up initial project for <strong>{workspaceName}</strong> under <strong>{orgName}</strong>
+                  <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                    Configuring initial QA project for <strong>{workspaceName}</strong> under <strong>{orgName}</strong>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <FolderDot size={15} color="var(--primary)" />
-                    First Project Name
-                  </label>
-                  <Input
-                    value={projectName}
-                    onChange={(e) => handleNameChange(e.target.value)}
-                    placeholder="e.g. Core Web Platform"
-                    required
-                  />
-                </div>
+                <Input
+                  label="First Project Name"
+                  leftIcon={<FolderDot size={15} color="var(--primary)" />}
+                  value={projectName}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  placeholder="e.g. Core Web Platform"
+                  required
+                />
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                    Project Key Prefix (for Test Cases, e.g. CORE-TC-1)
-                  </label>
-                  <Input
-                    value={projectKey}
-                    onChange={(e) => setProjectKey(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))}
-                    placeholder="e.g. CORE"
-                    maxLength={10}
-                    required
-                  />
-                </div>
+                <Input
+                  label="Project Key Prefix (e.g. CORE -> CORE-TC-1)"
+                  value={projectKey}
+                  onChange={(e) => setProjectKey(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))}
+                  placeholder="e.g. CORE"
+                  maxLength={10}
+                  required
+                />
 
                 <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
                   <Button
                     type="button"
                     variant="secondary"
+                    size="lg"
                     onClick={() => setStep(1)}
                     disabled={isLoading}
+                    leftIcon={<ArrowLeft size={16} />}
                   >
                     Back
                   </Button>
                   <Button
                     type="submit"
                     variant="primary"
+                    size="lg"
                     isLoading={isLoading}
+                    leftIcon={<CheckCircle2 size={16} />}
                     style={{ flex: 1 }}
                   >
-                    <CheckCircle2 size={16} />
-                    <span>Launch Organization & Workspace</span>
+                    Launch Organization & Workspace
                   </Button>
                 </div>
               </div>
@@ -476,37 +515,58 @@ export const OnboardingPage: React.FC = () => {
 
         {/* 2. JOIN ORGANIZATION FLOW */}
         {mode === 'join' && (
-          <form onSubmit={handleCompleteJoin} className="space-y-4">
-            <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center gap-3">
-              <Key className="w-5 h-5 text-indigo-400 shrink-0" />
-              <div className="text-xs text-slate-200">
+          <form onSubmit={handleCompleteJoin} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            <div
+              style={{
+                padding: '12px 16px',
+                backgroundColor: 'rgba(79, 70, 229, 0.08)',
+                border: '1px solid rgba(79, 70, 229, 0.25)',
+                borderRadius: 'var(--radius-md)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+              }}
+            >
+              <Key size={20} color="var(--accent-cyan)" />
+              <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', lineHeight: 1.4 }}>
                 Enter the join code shared by your organization administrator (e.g. <strong>LUMEN-XXXX-YYYY</strong>).
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                Join Code
-              </label>
-              <input
-                type="text"
-                placeholder="LUMEN-XXXX-YYYY"
-                value={joinCodeInput}
-                onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
-                className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-indigo-300 font-mono font-bold tracking-wider text-base focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                required
-                autoFocus
-              />
-            </div>
+            <Input
+              label="Organization Join Code"
+              placeholder="LUMEN-XXXX-YYYY"
+              value={joinCodeInput}
+              onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
+              leftIcon={<Key size={16} color="var(--accent-cyan)" />}
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontWeight: 600,
+                letterSpacing: '0.06em',
+                fontSize: '0.9375rem',
+              }}
+              required
+              autoFocus
+            />
 
-            <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
-                Your Professional Title
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label
+                style={{
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <Briefcase size={15} color="var(--primary)" />
+                Professional Title (Role)
               </label>
               <select
                 value={selectedTitle}
                 onChange={(e) => setSelectedTitle(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-slate-200 text-sm focus:outline-none"
+                style={selectStyle}
               >
                 {PREDEFINED_TITLES.map((t) => (
                   <option key={t} value={t}>
@@ -516,14 +576,25 @@ export const OnboardingPage: React.FC = () => {
               </select>
             </div>
 
+            {selectedTitle === 'Other' && (
+              <Input
+                label="Custom Title"
+                value={customTitle}
+                onChange={(e) => setCustomTitle(e.target.value)}
+                placeholder="e.g. Lead Quality Architect"
+                required
+              />
+            )}
+
             <Button
               type="submit"
               variant="primary"
+              size="lg"
               isLoading={isLoading}
-              style={{ width: '100%', marginTop: '12px' }}
+              leftIcon={<CheckCircle2 size={16} />}
+              style={{ width: '100%', marginTop: '6px' }}
             >
-              <CheckCircle2 size={16} />
-              <span>Join Organization</span>
+              Join Organization
             </Button>
           </form>
         )}

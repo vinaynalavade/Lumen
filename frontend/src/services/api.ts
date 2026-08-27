@@ -31,10 +31,17 @@ export class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers,
+      });
+    } catch (networkErr: any) {
+      throw new Error(
+        'Unable to connect to the backend server. Please check your network connection or verify that the API service is active.'
+      );
+    }
 
     if (response.status === 401) {
       // Clear token and handle unauthorized redirect if not already on auth page
@@ -53,13 +60,23 @@ export class ApiClient {
         const errorData = await response.json();
         if (errorData.detail) {
           if (typeof errorData.detail === 'string') {
-            errorMessage = errorData.detail;
+            if (response.status === 404 && errorData.detail.toLowerCase().includes('not found')) {
+              errorMessage = `The requested API endpoint (${endpoint}) was not found on the backend (404). Please ensure the backend service has been redeployed with the latest release.`;
+            } else {
+              errorMessage = errorData.detail;
+            }
           } else if (Array.isArray(errorData.detail)) {
-            errorMessage = errorData.detail.map((e: any) => `${e.loc?.slice(1)?.join('.') || 'field'}: ${e.msg}`).join(', ');
+            errorMessage = errorData.detail
+              .map((e: any) => `${e.loc?.slice(1)?.join('.') || 'field'}: ${e.msg}`)
+              .join(', ');
           }
+        } else if (response.status === 404) {
+          errorMessage = `API endpoint '${endpoint}' not found (404).`;
         }
       } catch (e) {
-        // Fallback to generic message
+        if (response.status === 404) {
+          errorMessage = `API endpoint '${endpoint}' not found (404).`;
+        }
       }
       throw new Error(errorMessage);
     }

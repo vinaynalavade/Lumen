@@ -421,13 +421,33 @@ export const TestSuitesPage: React.FC = () => {
                       {tc.key}
                     </span>
                     <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', flex: 1 }}>{tc.title}</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
-                      tc.review_status === 'APPROVED'
-                        ? 'bg-emerald-500/20 text-emerald-300'
-                        : tc.review_status === 'IN_REVIEW'
-                        ? 'bg-amber-500/20 text-amber-300'
-                        : 'bg-slate-800 text-slate-400'
-                    }`}>
+                    <span
+                      style={{
+                        fontSize: '0.625rem',
+                        padding: '2px 8px',
+                        borderRadius: 'var(--radius-full)',
+                        fontWeight: 600,
+                        backgroundColor:
+                          tc.review_status === 'APPROVED'
+                            ? 'var(--status-pass-bg)'
+                            : tc.review_status === 'IN_REVIEW'
+                            ? 'var(--status-blocked-bg)'
+                            : 'var(--bg-subtle)',
+                        color:
+                          tc.review_status === 'APPROVED'
+                            ? 'var(--status-pass)'
+                            : tc.review_status === 'IN_REVIEW'
+                            ? 'var(--status-blocked)'
+                            : 'var(--text-muted)',
+                        border: `1px solid ${
+                          tc.review_status === 'APPROVED'
+                            ? 'rgba(16, 185, 129, 0.25)'
+                            : tc.review_status === 'IN_REVIEW'
+                            ? 'rgba(245, 158, 11, 0.25)'
+                            : 'var(--border-subtle)'
+                        }`,
+                      }}
+                    >
                       {tc.review_status || 'DRAFT'}
                     </span>
                     <Badge variant="neutral">{tc.priority}</Badge>

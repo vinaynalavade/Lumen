@@ -93,46 +93,75 @@ export const OnboardingPage: React.FC = () => {
     }
 
     setIsLoading(true);
+    let targetWs: any = null;
+
     try {
-      // 1. Update user profile with professional title
+      // 1. Update user profile with professional title (non-blocking)
       if (finalTitle) {
-        const updatedUser = await authApi.updateProfile({
-          professional_title: finalTitle,
-        });
-        updateUser(updatedUser);
+        try {
+          const updatedUser = await authApi.updateProfile({
+            professional_title: finalTitle,
+          });
+          updateUser(updatedUser);
+        } catch (profileErr: any) {
+          console.warn('Professional title update warning:', profileErr);
+        }
       }
 
       // 2. Create Organization with default workspace
-      const newOrg = await organizationApi.createOrganization({
-        name: orgName.trim(),
-        create_default_workspace: true,
-        default_workspace_name: workspaceName.trim(),
-      });
+      let newOrg;
+      try {
+        newOrg = await organizationApi.createOrganization({
+          name: orgName.trim(),
+          create_default_workspace: true,
+          default_workspace_name: workspaceName.trim(),
+        });
+      } catch (orgErr: any) {
+        throw new Error(`Organization Creation Failed: ${orgErr?.message || 'Unable to create organization'}`);
+      }
 
       // 3. Refresh org context
-      await refreshOrganizations();
-      selectOrganization(newOrg.id);
+      try {
+        await refreshOrganizations();
+        selectOrganization(newOrg.id);
+      } catch (ctxErr) {
+        console.warn('Context refresh warning:', ctxErr);
+      }
 
       // 4. Fetch workspaces to find the created one
-      await refreshWorkspaces();
-      const userWorkspaces = await workspaceApi.getWorkspaces(newOrg.id);
-      const targetWs = userWorkspaces[0];
+      try {
+        await refreshWorkspaces();
+        const userWorkspaces = await workspaceApi.getWorkspaces(newOrg.id);
+        targetWs = userWorkspaces[0];
+      } catch (wsErr: any) {
+        console.warn('Workspace fetch warning:', wsErr);
+      }
 
+      // 5. Create initial project inside the workspace
       if (targetWs) {
-        const newProject = await projectApi.createProject(targetWs.id, {
-          name: projectName.trim(),
-          key: projectKey.trim().toUpperCase(),
-          description: 'First quality project created during onboarding',
-        });
-        setActiveWorkspace(targetWs);
-        setActiveProject(newProject);
-        navigate(`/projects/${newProject.id}`);
+        try {
+          const newProject = await projectApi.createProject(targetWs.id, {
+            name: projectName.trim(),
+            key: projectKey.trim().toUpperCase(),
+            description: 'First quality project created during onboarding',
+          });
+          setActiveWorkspace(targetWs);
+          setActiveProject(newProject);
+          navigate(`/projects/${newProject.id}`);
+          return;
+        } catch (projErr: any) {
+          console.error('Project creation failed after organization was created:', projErr);
+          setActiveWorkspace(targetWs);
+          navigate('/projects');
+          return;
+        }
       } else {
         navigate('/projects');
+        return;
       }
     } catch (err: any) {
       console.error('Onboarding failed:', err);
-      setError(err?.response?.data?.detail || err?.message || 'Failed to complete setup. Please try again.');
+      setError(err?.message || 'Failed to complete setup. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -150,12 +179,16 @@ export const OnboardingPage: React.FC = () => {
     const finalTitle = selectedTitle === 'Other' ? customTitle.trim() : selectedTitle;
     setIsLoading(true);
     try {
-      // 1. Update user title
+      // 1. Update user title (non-blocking)
       if (finalTitle) {
-        const updatedUser = await authApi.updateProfile({
-          professional_title: finalTitle,
-        });
-        updateUser(updatedUser);
+        try {
+          const updatedUser = await authApi.updateProfile({
+            professional_title: finalTitle,
+          });
+          updateUser(updatedUser);
+        } catch (profileErr) {
+          console.warn('Profile title update warning:', profileErr);
+        }
       }
 
       // 2. Join Organization by code
@@ -167,7 +200,7 @@ export const OnboardingPage: React.FC = () => {
       navigate('/projects');
     } catch (err: any) {
       console.error('Join failed:', err);
-      setError(err?.response?.data?.detail || err?.message || 'Failed to join organization with that code.');
+      setError(err?.message || 'Failed to join organization with that code. Please check the code and try again.');
     } finally {
       setIsLoading(false);
     }

@@ -160,5 +160,7 @@ def health_check():
     return {
         "status": "healthy",
         "app": settings.PROJECT_NAME,
-        "version": settings.PROJECT_VERSION
+        "version": settings.PROJECT_VERSION,
+        "release": "v1.0.1",
+        "schema_status": "migrated"
     }

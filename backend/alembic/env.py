@@ -1,13 +1,19 @@
 import os
 import sys
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import pool
 from alembic import context
 
-sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), '..')))
+# Ensure backend directory is in sys.path
+backend_dir = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+root_dir = os.path.realpath(os.path.join(backend_dir, '..'))
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
 
 from app.core.config import settings
-from app.core.database import Base
+from app.core.database import Base, create_db_engine
 import app.models
 
 config = context.config
@@ -18,12 +24,8 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
-def get_url():
-    return settings.sync_database_url
-
-
 def run_migrations_offline() -> None:
-    url = get_url()
+    url = settings.sync_database_url
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -36,17 +38,13 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    configuration = config.get_section(config.config_ini_section)
-    configuration["sqlalchemy.url"] = get_url()
-    connectable = engine_from_config(
-        configuration,
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    connectable = create_db_engine()
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            render_as_batch=(connectable.dialect.name == 'sqlite'),
         )
 
         with context.begin_transaction():

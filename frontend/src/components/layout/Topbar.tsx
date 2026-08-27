@@ -216,43 +216,46 @@ export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
                 </div>
 
                 <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
-                  {organizations.map((org) => (
-                    <button
-                      key={org.id}
-                      onClick={() => {
-                        selectOrganization(org.id);
-                        setIsOrgMenuOpen(false);
-                        navigate('/projects');
-                      }}
-                      style={{
-                        width: '100%',
-                        textAlign: 'left',
-                        padding: '8px 10px',
-                        borderRadius: 'var(--radius-sm)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        backgroundColor: currentOrganization?.id === org.id ? 'var(--bg-subtle)' : 'transparent',
-                        color: currentOrganization?.id === org.id ? '#ffffff' : 'var(--text-secondary)',
-                        fontSize: '0.8125rem',
-                        fontWeight: currentOrganization?.id === org.id ? 600 : 400,
-                        border: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                        <Building2 size={14} color="var(--accent-cyan)" />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {org.name}
-                        </span>
-                      </div>
-                      {org.current_user_role && (
-                        <span style={{ fontSize: '0.625rem', color: 'var(--text-muted)' }}>
-                          {org.current_user_role}
-                        </span>
-                      )}
-                    </button>
-                  ))}
+                  {organizations.map((org) => {
+                    const isSelected = currentOrganization?.id === org.id;
+                    return (
+                      <button
+                        key={org.id}
+                        onClick={() => {
+                          selectOrganization(org.id);
+                          setIsOrgMenuOpen(false);
+                          navigate('/projects');
+                        }}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '8px 10px',
+                          borderRadius: 'var(--radius-sm)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          backgroundColor: isSelected ? 'var(--primary-light)' : 'transparent',
+                          color: isSelected ? 'var(--primary)' : 'var(--text-primary)',
+                          fontSize: '0.8125rem',
+                          fontWeight: isSelected ? 600 : 400,
+                          border: 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                          <Building2 size={14} color={isSelected ? 'var(--primary)' : 'var(--accent-cyan)'} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {org.name}
+                          </span>
+                        </div>
+                        {org.current_user_role && (
+                          <span style={{ fontSize: '0.625rem', color: isSelected ? 'var(--primary)' : 'var(--text-muted)' }}>
+                            {org.current_user_role}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 <div style={{ height: '1px', backgroundColor: 'var(--border-subtle)', margin: '6px 0' }} />
@@ -271,7 +274,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
-                      color: 'var(--text-primary)',
+                      color: 'var(--text-secondary)',
                       fontSize: '0.8125rem',
                       fontWeight: 500,
                       border: 'none',
@@ -279,7 +282,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
                       cursor: 'pointer',
                     }}
                   >
-                    <Settings size={14} color="var(--accent-cyan)" />
+                    <Settings size={14} />
                     <span>Organization Settings</span>
                   </button>
                 )}
@@ -368,45 +371,48 @@ export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
                 </div>
 
                 <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
-                  {workspaces.map((ws) => (
-                    <button
-                      key={ws.id}
-                      onClick={() => {
-                        setActiveWorkspace(ws);
-                        setIsWorkspaceMenuOpen(false);
-                        navigate('/projects');
-                      }}
-                      style={{
-                        width: '100%',
-                        textAlign: 'left',
-                        padding: '8px 10px',
-                        borderRadius: 'var(--radius-sm)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        backgroundColor: activeWorkspace?.id === ws.id ? 'var(--bg-subtle)' : 'transparent',
-                        color: activeWorkspace?.id === ws.id ? '#ffffff' : 'var(--text-secondary)',
-                        fontSize: '0.8125rem',
-                        fontWeight: activeWorkspace?.id === ws.id ? 600 : 400,
-                        border: 'none',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {ws.name}
-                      </span>
-                      {activeWorkspace?.id === ws.id && (
-                        <span
-                          style={{
-                            width: '6px',
-                            height: '6px',
-                            borderRadius: '50%',
-                            backgroundColor: 'var(--primary)',
-                          }}
-                        />
-                      )}
-                    </button>
-                  ))}
+                  {workspaces.map((ws) => {
+                    const isSelected = activeWorkspace?.id === ws.id;
+                    return (
+                      <button
+                        key={ws.id}
+                        onClick={() => {
+                          setActiveWorkspace(ws);
+                          setIsWorkspaceMenuOpen(false);
+                          navigate('/projects');
+                        }}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '8px 10px',
+                          borderRadius: 'var(--radius-sm)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          backgroundColor: isSelected ? 'var(--primary-light)' : 'transparent',
+                          color: isSelected ? 'var(--primary)' : 'var(--text-primary)',
+                          fontSize: '0.8125rem',
+                          fontWeight: isSelected ? 600 : 400,
+                          border: 'none',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {ws.name}
+                        </span>
+                        {isSelected && (
+                          <span
+                            style={{
+                              width: '6px',
+                              height: '6px',
+                              borderRadius: '50%',
+                              backgroundColor: 'var(--primary)',
+                            }}
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 <div style={{ height: '1px', backgroundColor: 'var(--border-subtle)', margin: '6px 0' }} />

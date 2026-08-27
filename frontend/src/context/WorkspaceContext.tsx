@@ -29,11 +29,12 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [activeProject, setActiveProjectState] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const fetchWorkspaces = async () => {
+  const fetchWorkspaces = async (overrideOrgId?: string) => {
     if (!isAuthenticated) return;
     setIsLoading(true);
     try {
-      const wsList = await workspaceApi.getWorkspaces(currentOrganization?.id);
+      const orgIdToUse = overrideOrgId !== undefined ? overrideOrgId : currentOrganization?.id;
+      const wsList = await workspaceApi.getWorkspaces(orgIdToUse);
       setWorkspaces(wsList);
 
       const savedWsId = localStorage.getItem('lumen_active_workspace_id');
@@ -87,7 +88,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   useEffect(() => {
     if (isAuthenticated) {
-      fetchWorkspaces();
+      fetchWorkspaces(currentOrganization?.id);
     } else {
       setWorkspaces([]);
       setActiveWorkspaceState(null);

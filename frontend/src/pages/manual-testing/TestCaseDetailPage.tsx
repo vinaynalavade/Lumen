@@ -16,7 +16,6 @@ import {
   XCircle,
 } from 'lucide-react';
 import { manualTestingApi } from '../../services/manualTestingApi';
-import { workspaceApi } from '../../services/workspaceApi';
 import { useWorkspace } from '../../context/WorkspaceContext';
 import { useAuth } from '../../context/AuthContext';
 import type {
@@ -29,7 +28,7 @@ import type {
   TestCaseType,
   TestCaseStep,
   TestModule,
-  WorkspaceMember,
+  User,
 } from '../../types';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
@@ -47,13 +46,8 @@ export const TestCaseDetailPage: React.FC = () => {
   const [history, setHistory] = useState<TestCaseHistoryEntry[]>([]);
   const [reviews, setReviews] = useState<TestCaseReview[]>([]);
   const [modules, setModules] = useState<TestModule[]>([]);
-  const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [reviewerCandidates, setReviewerCandidates] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  const isAuthor = Boolean(user?.id && testCase?.created_by_id && user.id === testCase.created_by_id);
-  const eligibleReviewers = members.filter(
-    (m) => m.user_id !== testCase?.created_by_id && m.role !== 'VIEWER'
-  );
 
   // Editor Modal
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -81,22 +75,20 @@ export const TestCaseDetailPage: React.FC = () => {
     if (!caseId || !projectId) return;
     setIsLoading(true);
     try {
-      const [caseData, histData, reviewData, modList] = await Promise.all([
+      const [caseData, histData, reviewData, modList, candidates] = await Promise.all([
         manualTestingApi.getTestCaseDetail(caseId),
         manualTestingApi.getTestCaseHistory(caseId),
         manualTestingApi.getTestCaseReviews(caseId),
         manualTestingApi.getModules(projectId),
+        manualTestingApi.getReviewerCandidates(projectId),
       ]);
       setTestCase(caseData);
       setHistory(histData);
       setReviews(reviewData);
       setModules(modList);
+      setReviewerCandidates(candidates);
       setSelectedTargetModule(caseData.module_id || '');
       setSubmitReviewerId(caseData.reviewer_id || '');
-
-      if (activeWorkspace) {
-        workspaceApi.getWorkspaceMembers(activeWorkspace.id).then(setMembers).catch(console.error);
-      }
     } catch (err) {
       console.error('Failed to load test case details:', err);
     } finally {
@@ -999,9 +991,9 @@ export const TestCaseDetailPage: React.FC = () => {
               style={selectStyle}
             >
               <option value="">-- Choose Reviewer --</option>
-              {eligibleReviewers.map((m) => (
-                <option key={m.user_id} value={m.user_id}>
-                  {m.user?.full_name || 'Team Member'} {m.user?.professional_title ? `— ${m.user.professional_title}` : `(${m.role})`}
+              {reviewerCandidates.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.full_name || 'Team Member'} {u.professional_title ? `— ${u.professional_title}` : ''}
                 </option>
               ))}
             </select>
@@ -1142,6 +1134,7 @@ export const TestCaseDetailPage: React.FC = () => {
         onSave={handleSaveEdit}
         initialData={testCase}
         modules={modules}
+        projectId={projectId}
       />
     </div>
   );

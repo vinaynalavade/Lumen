@@ -6,10 +6,9 @@ import { Modal } from '../common/Modal';
 import { Input } from '../common/Input';
 import { Button } from '../common/Button';
 import { useWorkspace } from '../../context/WorkspaceContext';
-import { workspaceApi } from '../../services/workspaceApi';
 
 export const AppLayout: React.FC = () => {
-  const { refreshWorkspaces, setActiveWorkspace } = useWorkspace();
+  const { createWorkspace, refreshWorkspaces, setActiveWorkspace } = useWorkspace();
 
   // Create Workspace Modal State
   const [isCreateWsOpen, setIsCreateWsOpen] = useState(false);
@@ -27,10 +26,7 @@ export const AppLayout: React.FC = () => {
     setError('');
     setIsSubmitting(true);
     try {
-      const created = await workspaceApi.createWorkspace({
-        name: wsName.trim(),
-        description: wsDesc.trim() || undefined,
-      });
+      const created = await createWorkspace(wsName.trim(), wsDesc.trim() || undefined);
       await refreshWorkspaces();
       setActiveWorkspace(created);
       setIsCreateWsOpen(false);

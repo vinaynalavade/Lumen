@@ -53,7 +53,17 @@ class WorkspaceRepository(BaseRepository[Workspace]):
         query = query.filter(or_(*conditions))
 
         if organization_id:
-            query = query.filter(Workspace.organization_id == organization_id)
+            from app.models.organization import Organization
+            org = db.query(Organization).filter(Organization.id == organization_id).first()
+            if org:
+                query = query.filter(
+                    or_(
+                        Workspace.organization_id == organization_id,
+                        (Workspace.organization_id.is_(None) & (Workspace.owner_id == org.owner_id))
+                    )
+                )
+            else:
+                query = query.filter(Workspace.organization_id == organization_id)
 
         return query.distinct().all()
 
@@ -68,6 +78,19 @@ class WorkspaceRepository(BaseRepository[Workspace]):
             counter += 1
 
         org_id = obj_in.organization_id or organization_id
+        if not org_id:
+            user_org = (
+                db.query(OrganizationMember)
+                .filter(
+                    OrganizationMember.user_id == owner_id,
+                    OrganizationMember.role.in_([OrganizationRole.OWNER, OrganizationRole.ADMIN])
+                )
+                .order_by(OrganizationMember.created_at.asc())
+                .first()
+            )
+            if user_org:
+                org_id = user_org.organization_id
+
         db_workspace = Workspace(
             name=obj_in.name,
             slug=slug,
@@ -85,6 +108,28 @@ class WorkspaceRepository(BaseRepository[Workspace]):
             role=WorkspaceRole.OWNER
         )
         db.add(member)
+
+        # Propagate workspace access to all existing organization members
+        if org_id:
+            org_members = (
+                db.query(OrganizationMember)
+                .filter(OrganizationMember.organization_id == org_id)
+                .all()
+            )
+            role_map = {
+                OrganizationRole.OWNER: WorkspaceRole.OWNER,
+                OrganizationRole.ADMIN: WorkspaceRole.ADMIN,
+                OrganizationRole.MEMBER: WorkspaceRole.MEMBER,
+                OrganizationRole.VIEWER: WorkspaceRole.VIEWER,
+            }
+            for om in org_members:
+                if om.user_id != owner_id:
+                    db.add(WorkspaceMember(
+                        workspace_id=db_workspace.id,
+                        user_id=om.user_id,
+                        role=role_map.get(om.role, WorkspaceRole.MEMBER)
+                    ))
+
         db.commit()
         db.refresh(db_workspace)
         return db_workspace

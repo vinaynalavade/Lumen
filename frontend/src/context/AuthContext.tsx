@@ -52,6 +52,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     authApi.logout();
+    localStorage.removeItem('lumen_active_organization_id');
+    localStorage.removeItem('lumen_active_workspace_id');
+    localStorage.removeItem('lumen_active_project_id');
     setUser(null);
     const base = import.meta.env.BASE_URL || '/';
     const loginPath = base.endsWith('/') ? `${base}login` : `${base}/login`;

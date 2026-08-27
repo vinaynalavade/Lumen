@@ -48,13 +48,13 @@ class ProjectService:
 
     @staticmethod
     def get_workspace_projects(
-        db: Session, workspace_id: str, current_user: User, status: Optional[ProjectStatus] = None
+        db: Session, workspace_id: str, current_user: User, project_status: Optional[ProjectStatus] = None
     ) -> List[ProjectResponse]:
         membership = workspace_repo.get_membership(db, workspace_id, current_user.id)
         if not membership and not current_user.is_superuser:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this workspace.")
 
-        projects = project_repo.get_workspace_projects(db, workspace_id, status)
+        projects = project_repo.get_workspace_projects(db, workspace_id, project_status)
         return [
             ProjectResponse(
                 id=p.id,

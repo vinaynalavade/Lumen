@@ -991,6 +991,7 @@ export const TestCasesPage: React.FC = () => {
         initialData={editingCase}
         modules={modules}
         defaultModuleId={selectedModuleId === 'unassigned' ? null : selectedModuleId}
+        projectId={projectId}
       />
     </div>
   );

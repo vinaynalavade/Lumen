@@ -197,4 +197,11 @@ export const manualTestingApi = {
   ): Promise<ExecutionEvidence> => {
     return ApiClient.post<ExecutionEvidence>(`/runs/${runId}/items/${itemId}/evidence`, data);
   },
+
+  // -----------------------------------------------------------
+  // 5. Reviewer Candidates
+  // -----------------------------------------------------------
+  getReviewerCandidates: async (projectId: string): Promise<import('../types').User[]> => {
+    return ApiClient.get<import('../types').User[]>(`/projects/${projectId}/reviewer-candidates`);
+  },
 };

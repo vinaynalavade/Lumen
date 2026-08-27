@@ -29,10 +29,9 @@ import type {
   TestCaseStatus,
   TestCaseReviewStatus,
   TestCaseStep,
-  WorkspaceMember,
+  User,
 } from '../../types';
-import { workspaceApi } from '../../services/workspaceApi';
-import { useWorkspace } from '../../context/WorkspaceContext';
+import { manualTestingApi } from '../../services/manualTestingApi';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
@@ -44,6 +43,7 @@ interface TestCaseEditorModalProps {
   initialData?: TestCase | null;
   modules: TestModule[];
   defaultModuleId?: string | null;
+  projectId?: string;
 }
 
 const TEST_TYPES: TestCaseType[] = [
@@ -68,16 +68,10 @@ export const TestCaseEditorModal: React.FC<TestCaseEditorModalProps> = ({
   initialData,
   modules,
   defaultModuleId,
+  projectId,
 }) => {
   const { user } = useAuth();
-  const { activeWorkspace } = useWorkspace();
-  const [members, setMembers] = useState<WorkspaceMember[]>([]);
-
-  // Filter eligible peer reviewers excluding the test case author
-  const currentAuthorId = initialData?.created_by_id || user?.id;
-  const eligibleReviewers = members.filter(
-    (m) => m.user_id !== currentAuthorId && m.role !== 'VIEWER'
-  );
+  const [reviewerCandidates, setReviewerCandidates] = useState<User[]>([]);
 
   // Form fields
   const [title, setTitle] = useState('');
@@ -105,12 +99,12 @@ export const TestCaseEditorModal: React.FC<TestCaseEditorModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
 
-  // Load workspace members for reviewer assignment
+  // Load eligible reviewer candidates from backend
   useEffect(() => {
-    if (isOpen && activeWorkspace) {
-      workspaceApi.getWorkspaceMembers(activeWorkspace.id).then(setMembers).catch(console.error);
+    if (isOpen && projectId) {
+      manualTestingApi.getReviewerCandidates(projectId).then(setReviewerCandidates).catch(console.error);
     }
-  }, [isOpen, activeWorkspace?.id]);
+  }, [isOpen, projectId]);
 
   useEffect(() => {
     if (initialData) {
@@ -799,9 +793,9 @@ export const TestCaseEditorModal: React.FC<TestCaseEditorModalProps> = ({
               style={{ ...selectStyle, maxWidth: '280px' }}
             >
               <option value="">-- No Reviewer Assigned --</option>
-              {eligibleReviewers.map((m) => (
-                <option key={m.user_id} value={m.user_id}>
-                  {m.user?.full_name || 'Team Member'} {m.user?.professional_title ? `— ${m.user.professional_title}` : `(${m.role})`}
+              {reviewerCandidates.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.full_name || 'Team Member'} {u.professional_title ? `— ${u.professional_title}` : ''}
                 </option>
               ))}
             </select>

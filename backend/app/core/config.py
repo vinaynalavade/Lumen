@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Lumen"
-    PROJECT_VERSION: str = "0.1.0"
+    PROJECT_VERSION: str = "1.0.1"
     API_V1_STR: str = "/api/v1"
     
     SECRET_KEY: str = "lumen-super-secret-production-grade-jwt-key-change-in-prod-2026"

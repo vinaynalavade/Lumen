@@ -697,7 +697,7 @@ export const TestCasesPage: React.FC = () => {
                 <option value="unassigned">[ Unassign / Root ]</option>
                 {modules.map((m) => (
                   <option key={m.id} value={m.id}>
-                    📁 {m.name}
+                    {m.name}
                   </option>
                 ))}
               </select>

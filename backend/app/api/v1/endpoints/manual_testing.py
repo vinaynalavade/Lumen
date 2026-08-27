@@ -12,6 +12,7 @@ from app.models.manual_testing import (
     TestCaseType,
 )
 from app.services.manual_testing_service import manual_testing_service
+from app.schemas.user import UserResponse
 from app.schemas.manual_testing import (
     TestModuleCreate,
     TestModuleUpdate,
@@ -187,6 +188,16 @@ def bulk_move_test_cases(
 # -------------------------------------------------------------
 # 2b. Test Case Review Governance Workflow
 # -------------------------------------------------------------
+@router.get("/projects/{project_id}/reviewer-candidates", response_model=List[UserResponse])
+def get_reviewer_candidates(
+    project_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List eligible peer reviewers for test case specification reviews."""
+    return manual_testing_service.get_reviewer_candidates(db, project_id, current_user)
+
+
 @router.post("/test-cases/{case_id}/submit-review", response_model=TestCaseDetailResponse)
 def submit_test_case_for_review(
     case_id: str,

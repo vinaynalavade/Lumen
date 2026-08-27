@@ -317,6 +317,20 @@ class ManualTestingService:
     # 2b. Test Case Review Governance Workflow
     # -------------------------------------------------------------
     @classmethod
+    def get_reviewer_candidates(
+        cls, db: Session, project_id: str, current_user: User
+    ) -> List[UserResponse]:
+        """List eligible peer reviewers for a project (excluding the current user unless superuser)."""
+        project = cls.get_authorized_project(db, project_id, current_user, require_write=False)
+        members = workspace_repo.get_members(db, project.workspace_id)
+        candidates = []
+        for m in members:
+            if m.role in [WorkspaceRole.OWNER, WorkspaceRole.ADMIN, WorkspaceRole.MEMBER]:
+                if m.user and (m.user.id != current_user.id or current_user.is_superuser):
+                    candidates.append(UserResponse.model_validate(m.user))
+        return candidates
+
+    @classmethod
     def submit_for_review(
         cls, db: Session, case_id: str, req: TestCaseSubmitReviewRequest, current_user: User
     ) -> TestCaseDetailResponse:
@@ -324,6 +338,12 @@ class ManualTestingService:
         if not case:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test case not found.")
         cls.get_authorized_project(db, case.project_id, current_user, require_write=True)
+
+        if req.reviewer_id and req.reviewer_id == current_user.id and not current_user.is_superuser:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Authors cannot assign themselves as reviewer. Please select a qualified peer or lead.",
+            )
 
         case.review_status = TestCaseReviewStatus.IN_REVIEW
         if req.reviewer_id:
@@ -352,6 +372,12 @@ class ManualTestingService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test case not found.")
         cls.get_authorized_project(db, case.project_id, current_user, require_write=True)
 
+        if case.created_by_id == current_user.id and not current_user.is_superuser:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Authors cannot review and approve their own test cases. A peer or lead must review and approve.",
+            )
+
         case.review_status = TestCaseReviewStatus.APPROVED
         case.status = TestCaseStatus.ACTIVE
         case.reviewer_id = current_user.id
@@ -379,6 +405,12 @@ class ManualTestingService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test case not found.")
         cls.get_authorized_project(db, case.project_id, current_user, require_write=True)
 
+        if case.created_by_id == current_user.id and not current_user.is_superuser:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Authors cannot request changes on their own test cases.",
+            )
+
         case.review_status = TestCaseReviewStatus.CHANGES_REQUESTED
         case.reviewer_id = current_user.id
         case.updated_by_id = current_user.id
@@ -404,6 +436,12 @@ class ManualTestingService:
         if not case:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test case not found.")
         cls.get_authorized_project(db, case.project_id, current_user, require_write=True)
+
+        if case.created_by_id == current_user.id and not current_user.is_superuser:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Authors cannot reject their own test cases.",
+            )
 
         case.review_status = TestCaseReviewStatus.REJECTED
         case.reviewer_id = current_user.id

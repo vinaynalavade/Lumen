@@ -387,8 +387,8 @@ export const ProjectDashboardPage: React.FC = () => {
       {/* Cross-Testing Philosophy Blueprint */}
       <Card
         style={{
-          background: 'linear-gradient(180deg, #131622 0%, #0d0f17 100%)',
-          border: '1px solid var(--border-strong)',
+          backgroundColor: 'var(--bg-card)',
+          border: '1px solid var(--border-subtle)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>

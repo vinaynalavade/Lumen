@@ -354,3 +354,142 @@ def test_test_case_module_movement_and_bulk_move(client: TestClient):
     detail2 = client.get(f"/api/v1/test-cases/{tc2_id}", headers=headers)
     assert detail1.json()["module_id"] == m2_id
     assert detail2.json()["module_id"] == m2_id
+
+
+def test_organization_member_workspace_access_and_self_review_prevention(client: TestClient):
+    # 1. Register Owner
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "owner.corp@qa.io", "password": "Password123!", "full_name": "Org Owner", "professional_title": "Head of QA"},
+    )
+    owner_login = client.post("/api/v1/auth/login", json={"email": "owner.corp@qa.io", "password": "Password123!"})
+    owner_token = owner_login.json()["access_token"]
+    owner_headers = {"Authorization": f"Bearer {owner_token}"}
+    owner_id = owner_login.json()["user"]["id"]
+
+    # 2. Register Member
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "member.corp@qa.io", "password": "Password123!", "full_name": "QA Member", "professional_title": "Senior QA Engineer"},
+    )
+    member_login = client.post("/api/v1/auth/login", json={"email": "member.corp@qa.io", "password": "Password123!"})
+    member_token = member_login.json()["access_token"]
+    member_headers = {"Authorization": f"Bearer {member_token}"}
+    member_id = member_login.json()["user"]["id"]
+
+    # 3. Owner creates organization with default workspace
+    org_res = client.post(
+        "/api/v1/organizations",
+        json={"name": "Corporation QA", "create_default_workspace": True, "default_workspace_name": "Corp Default Workspace"},
+        headers=owner_headers,
+    )
+    assert org_res.status_code == 201
+    org_id = org_res.json()["id"]
+
+    # Owner gets workspaces
+    owner_ws_res = client.get(f"/api/v1/workspaces?organization_id={org_id}", headers=owner_headers)
+    assert len(owner_ws_res.json()) == 1
+    ws_id = owner_ws_res.json()[0]["id"]
+
+    # Owner creates project
+    proj_res = client.post(
+        f"/api/v1/workspaces/{ws_id}/projects",
+        json={"name": "Corp Core Project", "key": "CORP"},
+        headers=owner_headers,
+    )
+    assert proj_res.status_code == 201
+    proj_id = proj_res.json()["id"]
+
+    # 4. Member joins organization via join code
+    code_res = client.get(f"/api/v1/organizations/{org_id}/join-code", headers=owner_headers)
+    join_code = code_res.json()["code"]
+
+    join_res = client.post("/api/v1/organizations/join-by-code", json={"join_code": join_code}, headers=member_headers)
+    assert join_res.status_code == 200
+
+    # 5. Member lists workspaces for organization — MUST see the workspace!
+    member_ws_res = client.get(f"/api/v1/workspaces?organization_id={org_id}", headers=member_headers)
+    assert member_ws_res.status_code == 200
+    assert len(member_ws_res.json()) >= 1
+    assert member_ws_res.json()[0]["id"] == ws_id
+
+    # 6. Member can access projects in workspace
+    member_proj_res = client.get(f"/api/v1/workspaces/{ws_id}/projects", headers=member_headers)
+    assert member_proj_res.status_code == 200
+    assert len(member_proj_res.json()) == 1
+
+    # 7. Check reviewer candidates endpoint (from Owner perspective: Member should be candidate; Owner is excluded)
+    candidates_res = client.get(f"/api/v1/projects/{proj_id}/reviewer-candidates", headers=owner_headers)
+    assert candidates_res.status_code == 200
+    candidate_ids = [c["id"] for c in candidates_res.json()]
+    assert member_id in candidate_ids
+    assert owner_id not in candidate_ids
+
+    # 8. Owner creates test case
+    tc_res = client.post(
+        f"/api/v1/projects/{proj_id}/test-cases",
+        json={
+            "title": "Validate Authentication Token Expiry",
+            "priority": "HIGH",
+            "severity": "CRITICAL",
+            "status": "ACTIVE",
+            "review_status": "DRAFT",
+            "steps": [{"step_number": 1, "action": "Send expired JWT", "expected_result": "HTTP 401 Unauthorized"}],
+        },
+        headers=owner_headers,
+    )
+    case_id = tc_res.json()["id"]
+
+    # 9. Anti-self-review: Owner cannot assign self as reviewer
+    self_assign_res = client.post(
+        f"/api/v1/test-cases/{case_id}/submit-review",
+        json={"reviewer_id": owner_id, "comments": "Assigning to myself."},
+        headers=owner_headers,
+    )
+    assert self_assign_res.status_code == 400
+    assert "cannot assign themselves" in self_assign_res.json()["detail"].lower()
+
+    # 10. Owner submits for review with Member as reviewer
+    submit_res = client.post(
+        f"/api/v1/test-cases/{case_id}/submit-review",
+        json={"reviewer_id": member_id, "comments": "Please review token validation."},
+        headers=owner_headers,
+    )
+    assert submit_res.status_code == 200
+
+    # 11. Anti-self-review: Owner cannot approve own test case
+    self_approve_res = client.post(
+        f"/api/v1/test-cases/{case_id}/approve",
+        json={"comments": "I approve my own test case."},
+        headers=owner_headers,
+    )
+    assert self_approve_res.status_code == 400
+    assert "cannot review and approve their own test cases" in self_approve_res.json()["detail"].lower()
+
+    # 12. Peer Member approves test case
+    member_approve_res = client.post(
+        f"/api/v1/test-cases/{case_id}/approve",
+        json={"comments": "Peer review complete and approved."},
+        headers=member_headers,
+    )
+    assert member_approve_res.status_code == 200
+    assert member_approve_res.json()["review_status"] == "APPROVED"
+
+    # 13. Member creates test run and executes approved test case
+    run_res = client.post(
+        f"/api/v1/projects/{proj_id}/runs",
+        json={"name": "Sprint 1 Regression Run", "environment": "Staging", "test_case_ids": [case_id]},
+        headers=member_headers,
+    )
+    assert run_res.status_code == 201
+    run_id = run_res.json()["id"]
+    run_item_id = run_res.json()["items"][0]["id"]
+
+    exec_res = client.post(
+        f"/api/v1/runs/{run_id}/items/{run_item_id}/execute",
+        json={"status": "PASSED", "actual_result": "Token properly returned 401 Unauthorized."},
+        headers=member_headers,
+    )
+    assert exec_res.status_code == 200
+    assert exec_res.json()["status"] == "PASSED"
+

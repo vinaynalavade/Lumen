@@ -12,6 +12,8 @@ from app.models.organization import (
     OrganizationJoinCode,
 )
 from app.models.user import User
+from app.models.workspace import Workspace
+from app.models.workspace_member import WorkspaceRole
 from app.repositories.organization_repo import OrganizationRepository
 from app.repositories.user_repo import user_repo
 from app.repositories.workspace_repo import workspace_repo
@@ -84,6 +86,21 @@ class OrganizationService:
             )
 
         return role
+
+    def _propagate_workspace_access(self, organization_id: str, user_id: str, org_role: OrganizationRole):
+        """Ensure the organization member has explicit access enrolled in all workspaces of the organization."""
+        role_map = {
+            OrganizationRole.OWNER: WorkspaceRole.OWNER,
+            OrganizationRole.ADMIN: WorkspaceRole.ADMIN,
+            OrganizationRole.MEMBER: WorkspaceRole.MEMBER,
+            OrganizationRole.VIEWER: WorkspaceRole.VIEWER,
+        }
+        target_ws_role = role_map.get(org_role, WorkspaceRole.MEMBER)
+        org_workspaces = self.db.query(Workspace).filter(Workspace.organization_id == organization_id).all()
+        for ws in org_workspaces:
+            existing = workspace_repo.get_membership(self.db, ws.id, user_id)
+            if not existing or existing.id.startswith("org-") or existing.id.startswith("owner-"):
+                workspace_repo.add_member(self.db, ws.id, user_id, target_ws_role)
 
     def create_organization(self, obj_in: OrganizationCreate, current_user: User) -> OrganizationResponse:
         base_slug = obj_in.slug or slugify(obj_in.name)
@@ -184,6 +201,7 @@ class OrganizationService:
             role=role,
             invited_by_id=current_user.id,
         )
+        self._propagate_workspace_access(organization_id, target_user.id, role)
         return OrganizationMemberResponse.model_validate(member)
 
     def update_member_role(
@@ -203,6 +221,7 @@ class OrganizationService:
         member = self.repo.update_member_role(organization_id, target_user_id, new_role)
         if not member:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization member not found.")
+        self._propagate_workspace_access(organization_id, target_user_id, new_role)
         return OrganizationMemberResponse.model_validate(member)
 
     def remove_member(self, organization_id: str, target_user_id: str, current_user: User) -> dict:
@@ -344,6 +363,9 @@ class OrganizationService:
         invite.uses_count += 1
         self.db.commit()
 
+        # Propagate workspace access
+        self._propagate_workspace_access(invite.organization_id, current_user.id, invite.role)
+
         org = self.repo.get(invite.organization_id)
         return self._to_response(org, current_user)
 
@@ -402,6 +424,9 @@ class OrganizationService:
 
         code_obj.uses_count += 1
         self.db.commit()
+
+        # Propagate workspace access
+        self._propagate_workspace_access(code_obj.organization_id, current_user.id, code_obj.role)
 
         org = self.repo.get(code_obj.organization_id)
         return self._to_response(org, current_user)

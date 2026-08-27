@@ -13,6 +13,8 @@ import {
   Settings,
   Globe,
   Layers,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkspace } from '../../context/WorkspaceContext';
@@ -35,6 +37,19 @@ export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isOrgSettingsModalOpen, setIsOrgSettingsModalOpen] = useState(false);
+
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('lumen_theme') as 'light' | 'dark') || 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('lumen_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  };
 
   const orgMenuRef = useRef<HTMLDivElement>(null);
   const wsMenuRef = useRef<HTMLDivElement>(null);
@@ -426,25 +441,47 @@ export const Topbar: React.FC<TopbarProps> = ({ onCreateWorkspace }) => {
         </div>
 
         {/* Right: Quick Links & User Popover */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <NavLink
             to="/projects"
             style={({ isActive }) => ({
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              fontSize: '0.875rem',
+              fontSize: '0.8125rem',
               fontWeight: 500,
-              color: isActive ? '#ffffff' : 'var(--text-secondary)',
+              color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
               padding: '6px 12px',
               borderRadius: 'var(--radius-md)',
               backgroundColor: isActive ? 'var(--bg-subtle)' : 'transparent',
+              border: isActive ? '1px solid var(--border-subtle)' : '1px solid transparent',
               textDecoration: 'none',
             })}
           >
-            <FolderDot size={16} />
+            <FolderDot size={15} />
             <span>Projects</span>
           </NavLink>
+
+          {/* Theme Switcher Toggle */}
+          <button
+            onClick={toggleTheme}
+            title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '32px',
+              height: '32px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-strong)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              transition: 'all var(--transition-fast)',
+            }}
+          >
+            {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
+          </button>
 
           {/* User Profile Popover */}
           <div style={{ position: 'relative' }} ref={userMenuRef}>

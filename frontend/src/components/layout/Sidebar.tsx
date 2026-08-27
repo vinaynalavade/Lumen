@@ -111,7 +111,7 @@ export const Sidebar: React.FC = () => {
         style={{
           padding: '16px',
           borderBottom: '1px solid var(--border-subtle)',
-          backgroundColor: 'rgba(19, 22, 34, 0.4)',
+          backgroundColor: 'var(--bg-card)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -196,7 +196,7 @@ export const Sidebar: React.FC = () => {
                   fontWeight: isActive ? 600 : 400,
                   color: isActive ? '#ffffff' : item.active ? 'var(--text-primary)' : 'var(--text-secondary)',
                   backgroundColor: isActive ? 'var(--primary)' : 'transparent',
-                  boxShadow: isActive ? '0 0 12px rgba(79, 70, 229, 0.35)' : 'none',
+                  boxShadow: isActive ? '0 0 12px rgba(79, 70, 229, 0.25)' : 'none',
                   opacity: item.active ? 1 : 0.65,
                   transition: 'all var(--transition-fast)',
                   textDecoration: 'none',
@@ -247,7 +247,7 @@ export const Sidebar: React.FC = () => {
         style={{
           padding: '16px',
           borderTop: '1px solid var(--border-subtle)',
-          backgroundColor: 'rgba(13, 15, 23, 0.8)',
+          backgroundColor: 'var(--bg-sidebar)',
           fontSize: '0.75rem',
           color: 'var(--text-muted)',
           display: 'flex',
@@ -256,7 +256,7 @@ export const Sidebar: React.FC = () => {
         }}
       >
         <span>Workspace: <strong style={{ color: 'var(--text-primary)' }}>{activeWorkspace?.name || 'Default'}</strong></span>
-        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>v0.1.0</span>
+        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)' }}>v1.0.1</span>
       </div>
     </aside>
   );

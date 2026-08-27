@@ -33,6 +33,7 @@ import type {
 } from '../../types';
 import { workspaceApi } from '../../services/workspaceApi';
 import { useWorkspace } from '../../context/WorkspaceContext';
+import { useAuth } from '../../context/AuthContext';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 
@@ -68,8 +69,15 @@ export const TestCaseEditorModal: React.FC<TestCaseEditorModalProps> = ({
   modules,
   defaultModuleId,
 }) => {
+  const { user } = useAuth();
   const { activeWorkspace } = useWorkspace();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
+
+  // Filter eligible peer reviewers excluding the test case author
+  const currentAuthorId = initialData?.created_by_id || user?.id;
+  const eligibleReviewers = members.filter(
+    (m) => m.user_id !== currentAuthorId && m.role !== 'VIEWER'
+  );
 
   // Form fields
   const [title, setTitle] = useState('');
@@ -788,12 +796,12 @@ export const TestCaseEditorModal: React.FC<TestCaseEditorModalProps> = ({
             <select
               value={reviewerId || ''}
               onChange={(e) => setReviewerId(e.target.value || null)}
-              style={{ ...selectStyle, maxWidth: '240px' }}
+              style={{ ...selectStyle, maxWidth: '280px' }}
             >
               <option value="">-- No Reviewer Assigned --</option>
-              {members.map((m) => (
+              {eligibleReviewers.map((m) => (
                 <option key={m.user_id} value={m.user_id}>
-                  {m.user?.full_name} ({m.user?.professional_title || m.role})
+                  {m.user?.full_name || 'Team Member'} {m.user?.professional_title ? `— ${m.user.professional_title}` : `(${m.role})`}
                 </option>
               ))}
             </select>

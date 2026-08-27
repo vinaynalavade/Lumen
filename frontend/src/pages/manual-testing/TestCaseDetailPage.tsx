@@ -18,6 +18,7 @@ import {
 import { manualTestingApi } from '../../services/manualTestingApi';
 import { workspaceApi } from '../../services/workspaceApi';
 import { useWorkspace } from '../../context/WorkspaceContext';
+import { useAuth } from '../../context/AuthContext';
 import type {
   TestCase,
   TestCaseHistoryEntry,
@@ -39,6 +40,7 @@ import { TestCaseEditorModal } from '../../components/manual-testing/TestCaseEdi
 export const TestCaseDetailPage: React.FC = () => {
   const { projectId, caseId } = useParams<{ projectId: string; caseId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { activeWorkspace } = useWorkspace();
 
   const [testCase, setTestCase] = useState<TestCase | null>(null);
@@ -47,6 +49,11 @@ export const TestCaseDetailPage: React.FC = () => {
   const [modules, setModules] = useState<TestModule[]>([]);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const isAuthor = Boolean(user?.id && testCase?.created_by_id && user.id === testCase.created_by_id);
+  const eligibleReviewers = members.filter(
+    (m) => m.user_id !== testCase?.created_by_id && m.role !== 'VIEWER'
+  );
 
   // Editor Modal
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -561,34 +568,55 @@ export const TestCaseDetailPage: React.FC = () => {
           )}
 
           {testCase.review_status === 'IN_REVIEW' && (
-            <>
-              <Button
-                variant="pass"
-                size="sm"
-                onClick={() => setIsApproveModalOpen(true)}
-                leftIcon={<CheckCircle2 size={14} />}
+            isAuthor ? (
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '6px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'var(--bg-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  fontSize: '0.75rem',
+                  color: 'var(--text-muted)',
+                }}
               >
-                Approve Test Case
-              </Button>
+                <Clock size={14} color="var(--primary)" />
+                <span>
+                  Awaiting review by <strong style={{ color: 'var(--text-primary)' }}>{testCase.reviewer?.full_name || 'Designated Reviewer'}</strong> (Author self-approval disabled)
+                </span>
+              </div>
+            ) : (
+              <>
+                <Button
+                  variant="pass"
+                  size="sm"
+                  onClick={() => setIsApproveModalOpen(true)}
+                  leftIcon={<CheckCircle2 size={14} />}
+                >
+                  Approve Test Case
+                </Button>
 
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setIsChangesModalOpen(true)}
-                leftIcon={<AlertCircle size={14} />}
-              >
-                Request Changes
-              </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setIsChangesModalOpen(true)}
+                  leftIcon={<AlertCircle size={14} />}
+                >
+                  Request Changes
+                </Button>
 
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={() => setIsRejectModalOpen(true)}
-                leftIcon={<XCircle size={14} />}
-              >
-                Reject
-              </Button>
-            </>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => setIsRejectModalOpen(true)}
+                  leftIcon={<XCircle size={14} />}
+                >
+                  Reject
+                </Button>
+              </>
+            )
           )}
 
           {testCase.review_status === 'APPROVED' && (
@@ -971,9 +999,9 @@ export const TestCaseDetailPage: React.FC = () => {
               style={selectStyle}
             >
               <option value="">-- Choose Reviewer --</option>
-              {members.map((m) => (
+              {eligibleReviewers.map((m) => (
                 <option key={m.user_id} value={m.user_id}>
-                  {m.user?.full_name} ({m.user?.professional_title || m.role})
+                  {m.user?.full_name || 'Team Member'} {m.user?.professional_title ? `— ${m.user.professional_title}` : `(${m.role})`}
                 </option>
               ))}
             </select>

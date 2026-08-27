@@ -55,27 +55,23 @@ export class ApiClient {
     }
 
     if (!response.ok) {
-      let errorMessage = `HTTP Error ${response.status}: ${response.statusText}`;
+      let errorMessage = `Request failed (HTTP ${response.status})`;
       try {
         const errorData = await response.json();
         if (errorData.detail) {
           if (typeof errorData.detail === 'string') {
-            if (response.status === 404 && errorData.detail.toLowerCase().includes('not found')) {
-              errorMessage = `The requested API endpoint (${endpoint}) was not found on the backend (404). Please ensure the backend service has been redeployed with the latest release.`;
-            } else {
-              errorMessage = errorData.detail;
-            }
+            errorMessage = errorData.detail;
           } else if (Array.isArray(errorData.detail)) {
             errorMessage = errorData.detail
               .map((e: any) => `${e.loc?.slice(1)?.join('.') || 'field'}: ${e.msg}`)
               .join(', ');
           }
-        } else if (response.status === 404) {
-          errorMessage = `API endpoint '${endpoint}' not found (404).`;
+        } else if (response.statusText) {
+          errorMessage = `${response.statusText} (${response.status})`;
         }
       } catch (e) {
-        if (response.status === 404) {
-          errorMessage = `API endpoint '${endpoint}' not found (404).`;
+        if (response.statusText) {
+          errorMessage = `${response.statusText} (${response.status})`;
         }
       }
       throw new Error(errorMessage);

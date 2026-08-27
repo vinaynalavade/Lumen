@@ -117,7 +117,7 @@ export const OnboardingPage: React.FC = () => {
           default_workspace_name: workspaceName.trim(),
         });
       } catch (orgErr: any) {
-        throw new Error(`Organization Creation Failed: ${orgErr?.message || 'Unable to create organization'}`);
+        throw orgErr;
       }
 
       // 3. Refresh org context
